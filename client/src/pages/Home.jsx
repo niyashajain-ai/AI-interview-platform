@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { getUser, logout } from "../auth";
+import { Link, useNavigate } from "react-router-dom";
+import { getToken, getUser, logout } from "../auth";
 
 function Home() {
   const navigate = useNavigate();
@@ -8,11 +8,20 @@ function Home() {
   const [questions, setQuestions] = useState([]);
 
   useEffect(() => {
-    fetch("http://localhost:5000/api/questions")
-      .then((res) => res.json())
+    fetch("http://localhost:5000/api/questions", {
+      headers: { Authorization: `Bearer ${getToken()}` },
+    })
+      .then((res) => {
+        if (res.status === 401) {
+          logout();
+          navigate("/login");
+          return [];
+        }
+        return res.json();
+      })
       .then((data) => setQuestions(data))
       .catch((err) => console.error(err));
-  }, []);
+  }, [navigate]);
 
   function handleLogout() {
     logout();
@@ -32,12 +41,16 @@ function Home() {
       </div>
 
       {questions.map((q) => (
-        <div key={q.id} className="border rounded-lg p-4 mb-3 shadow-sm">
+        <Link
+          to={`/question/${q.id}`}
+          key={q.id}
+          className="block border rounded-lg p-4 mb-3 shadow-sm hover:bg-gray-50"
+        >
           <h3 className="font-semibold">{q.title}</h3>
           <p className="text-sm text-gray-600">
             {q.topic} • {q.difficulty} • {q.company}
           </p>
-        </div>
+        </Link>
       ))}
     </div>
   );
