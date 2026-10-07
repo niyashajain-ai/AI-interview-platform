@@ -53,5 +53,24 @@ app.get("/api/questions/:id", requireAuth, async (req, res) => {
   }
 });
 
+app.post("/api/attempts", requireAuth, async (req, res) => {
+  const { questionId, answer } = req.body;
+
+  if (!questionId || !answer || !answer.trim()) {
+    return res.status(400).json({ error: "Please write an answer first" });
+  }
+
+  try {
+    const result = await pool.query(
+      "INSERT INTO attempts (user_id, question_id, answer) VALUES ($1, $2, $3) RETURNING id, created_at",
+      [req.userId, questionId, answer.trim()]
+    );
+    res.status(201).json(result.rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Could not save answer" });
+  }
+});
+
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
