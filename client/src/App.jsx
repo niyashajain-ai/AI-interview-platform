@@ -4,6 +4,7 @@ import Login from "./pages/Login";
 import Signup from "./pages/Signup";
 import Question from "./pages/Question";
 import { getToken } from "./auth";
+import Dashboard from "./pages/Dashboard";
 
 function ProtectedRoute({ children }) {
   return getToken() ? children : <Navigate to="/login" />;
@@ -28,6 +29,14 @@ function App() {
           element={
             <ProtectedRoute>
               <Question />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/dashboard"
+          element={
+            <ProtectedRoute>
+              <Dashboard />
             </ProtectedRoute>
           }
         />

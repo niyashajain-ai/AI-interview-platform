@@ -73,6 +73,9 @@ function Home() {
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold">AI Interview Prep</h1>
         <div className="flex items-center gap-3">
+          <Link to="/dashboard" className="border rounded px-3 py-1 hover:bg-gray-100">
+            📊 Dashboard
+          </Link>
           <span>Hi, {user?.name}</span>
           <button onClick={handleLogout} className="border rounded px-3 py-1 hover:bg-gray-100">
             Log out

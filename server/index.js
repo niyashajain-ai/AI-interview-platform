@@ -136,6 +136,77 @@ app.delete("/api/bookmarks/:questionId", requireAuth, async (req, res) => {
     res.status(500).json({ error: "Could not remove bookmark" });
   }
 });
+app.get("/api/notes/:questionId", requireAuth, async (req, res) => {
+  try {
+    const result = await pool.query(
+      "SELECT content FROM notes WHERE user_id = $1 AND question_id = $2",
+      [req.userId, req.params.questionId]
+    );
+    res.json({ content: result.rows.length ? result.rows[0].content : "" });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Could not get note" });
+  }
+});
+
+app.put("/api/notes/:questionId", requireAuth, async (req, res) => {
+  const content = (req.body.content || "").trim();
+  try {
+    if (!content) {
+      await pool.query(
+        "DELETE FROM notes WHERE user_id = $1 AND question_id = $2",
+        [req.userId, req.params.questionId]
+      );
+      return res.json({ content: "" });
+    }
+    await pool.query(
+      `INSERT INTO notes (user_id, question_id, content)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (user_id, question_id)
+       DO UPDATE SET content = EXCLUDED.content, updated_at = NOW()`,
+      [req.userId, req.params.questionId, content]
+    );
+    res.json({ content });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Could not save note" });
+  }
+});
+
+app.get("/api/stats", requireAuth, async (req, res) => {
+  try {
+    const totals = await pool.query(
+      `SELECT COUNT(*)::int AS attempts,
+              COUNT(DISTINCT question_id)::int AS questions_practiced,
+              ROUND(AVG(score), 1) AS avg_score
+       FROM attempts WHERE user_id = $1`,
+      [req.userId]
+    );
+
+    const byTopic = await pool.query(
+      `SELECT q.topic, COUNT(*)::int AS attempts, ROUND(AVG(a.score), 1) AS avg_score
+       FROM attempts a JOIN questions q ON q.id = a.question_id
+       WHERE a.user_id = $1 AND a.score IS NOT NULL
+       GROUP BY q.topic
+       ORDER BY avg_score ASC`,
+      [req.userId]
+    );
+
+    const recent = await pool.query(
+      `SELECT a.id, a.question_id, a.score, a.created_at, q.title
+       FROM attempts a JOIN questions q ON q.id = a.question_id
+       WHERE a.user_id = $1
+       ORDER BY a.created_at DESC
+       LIMIT 5`,
+      [req.userId]
+    );
+
+    res.json({ ...totals.rows[0], byTopic: byTopic.rows, recent: recent.rows });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Could not get stats" });
+  }
+});
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));

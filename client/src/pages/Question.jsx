@@ -11,7 +11,8 @@ function Question() {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
   const [review, setReview] = useState(null);
-
+  const [note, setNote] = useState("");
+  const [noteMessage, setNoteMessage] = useState("");
 
   useEffect(() => {
     fetch(`http://localhost:5000/api/questions/${id}`, {
@@ -35,6 +36,32 @@ function Question() {
       })
       .catch(() => setError("Cannot reach the server"));
   }, [id, navigate]);
+
+  useEffect(() => {
+    fetch(`http://localhost:5000/api/notes/${id}`, {
+      headers: { Authorization: `Bearer ${getToken()}` },
+    })
+      .then((res) => (res.ok ? res.json() : { content: "" }))
+      .then((data) => setNote(data.content))
+      .catch((err) => console.error(err));
+  }, [id]);
+
+  async function saveNote() {
+    setNoteMessage("");
+    try {
+      const res = await fetch(`http://localhost:5000/api/notes/${id}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${getToken()}`,
+        },
+        body: JSON.stringify({ content: note }),
+      });
+      setNoteMessage(res.ok ? "Note saved ✅" : "Could not save the note");
+    } catch {
+      setNoteMessage("Cannot reach the server");
+    }
+  }
 
   async function handleSubmit() {
     setMessage("");
@@ -119,6 +146,22 @@ function Question() {
               <p>{review.follow_up}</p>
             </div>
           )}
+          <div className="mt-8">
+            <h3 className="font-semibold">📝 My notes</h3>
+            <textarea
+              className="w-full border rounded p-3 mt-2 h-28"
+              placeholder="Write anything you want to remember about this question..."
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+            />
+            <button
+              onClick={saveNote}
+              className="mt-2 border border-blue-600 text-blue-600 px-4 py-2 rounded"
+            >
+              Save note
+            </button>
+            {noteMessage && <p className="mt-2">{noteMessage}</p>}
+          </div>
         </div>
       )}
     </div>
