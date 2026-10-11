@@ -98,6 +98,44 @@ app.post("/api/attempts", requireAuth, async (req, res) => {
     res.status(500).json({ error: "Could not save answer" });
   }
 });
+app.get("/api/bookmarks", requireAuth, async (req, res) => {
+  try {
+    const result = await pool.query(
+      "SELECT question_id FROM bookmarks WHERE user_id = $1",
+      [req.userId]
+    );
+    res.json(result.rows.map((row) => row.question_id));
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Could not get bookmarks" });
+  }
+});
+
+app.post("/api/bookmarks/:questionId", requireAuth, async (req, res) => {
+  try {
+    await pool.query(
+      "INSERT INTO bookmarks (user_id, question_id) VALUES ($1, $2) ON CONFLICT DO NOTHING",
+      [req.userId, req.params.questionId]
+    );
+    res.status(201).json({ bookmarked: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Could not save bookmark" });
+  }
+});
+
+app.delete("/api/bookmarks/:questionId", requireAuth, async (req, res) => {
+  try {
+    await pool.query(
+      "DELETE FROM bookmarks WHERE user_id = $1 AND question_id = $2",
+      [req.userId, req.params.questionId]
+    );
+    res.json({ bookmarked: false });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Could not remove bookmark" });
+  }
+});
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
