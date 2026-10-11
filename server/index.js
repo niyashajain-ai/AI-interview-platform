@@ -4,6 +4,7 @@ require("dotenv").config();
 
 const pool = require("./db");
 const requireAuth = require("./middleware/auth");
+const { reviewAnswer } = require("./ai");
 
 const app = express();
 app.use(cors());
@@ -61,11 +62,37 @@ app.post("/api/attempts", requireAuth, async (req, res) => {
   }
 
   try {
-    const result = await pool.query(
-      "INSERT INTO attempts (user_id, question_id, answer) VALUES ($1, $2, $3) RETURNING id, created_at",
+    const q = await pool.query(
+      "SELECT title, correct_answer FROM questions WHERE id = $1",
+      [questionId]
+    );
+    if (q.rows.length === 0) {
+      return res.status(404).json({ error: "Question not found" });
+    }
+
+    const saved = await pool.query(
+      "INSERT INTO attempts (user_id, question_id, answer) VALUES ($1, $2, $3) RETURNING id",
       [req.userId, questionId, answer.trim()]
     );
-    res.status(201).json(result.rows[0]);
+    const attemptId = saved.rows[0].id;
+
+    try {
+      const review = await reviewAnswer(
+        q.rows[0].title,
+        q.rows[0].correct_answer,
+        answer.trim()
+      );
+      await pool.query(
+        "UPDATE attempts SET score = $1, feedback = $2 WHERE id = $3",
+        [Math.round(Number(review.score)), JSON.stringify(review), attemptId]
+      );
+      return res.status(201).json({ id: attemptId, review });
+    } catch (aiErr) {
+      console.error(aiErr);
+      return res
+        .status(201)
+        .json({ id: attemptId, review: null, aiError: aiErr.message });
+    }
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Could not save answer" });

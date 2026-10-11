@@ -10,6 +10,8 @@ function Question() {
   const [answer, setAnswer] = useState("");
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
+  const [review, setReview] = useState(null);
+
 
   useEffect(() => {
     fetch(`http://localhost:5000/api/questions/${id}`, {
@@ -36,6 +38,7 @@ function Question() {
 
   async function handleSubmit() {
     setMessage("");
+    setReview(null);
     setSaving(true);
     try {
       const res = await fetch("http://localhost:5000/api/attempts", {
@@ -56,9 +59,13 @@ function Question() {
       const data = await res.json();
       if (!res.ok) {
         setMessage(data.error || "Something went wrong");
+      } else if (data.review) {
+        setReview(data.review);
       } else {
-        setMessage("Answer saved! ✅");
-        setAnswer("");
+        setMessage(
+          "Your answer was saved, but the AI review failed: " +
+          (data.aiError || "please try again in a minute")
+        );
       }
     } catch {
       setMessage("Cannot reach the server");
@@ -92,9 +99,26 @@ function Question() {
             disabled={saving}
             className="mt-3 bg-blue-600 text-white px-4 py-2 rounded disabled:opacity-50"
           >
-            {saving ? "Saving..." : "Submit answer"}
+            {saving ? "AI is reviewing your answer..." : "Submit answer"}
           </button>
           {message && <p className="mt-3">{message}</p>}
+          {review && (
+            <div className="mt-6 border rounded p-4 bg-gray-50">
+              <p className="text-xl font-bold">Score: {review.score} / 10</p>
+
+              <h3 className="font-semibold mt-4">👍 What was good</h3>
+              <p>{review.good}</p>
+
+              <h3 className="font-semibold mt-4">⚠️ What to improve</h3>
+              <p>{review.wrong}</p>
+
+              <h3 className="font-semibold mt-4">✨ A better answer</h3>
+              <p>{review.better_answer}</p>
+
+              <h3 className="font-semibold mt-4">❓ Follow-up question</h3>
+              <p>{review.follow_up}</p>
+            </div>
+          )}
         </div>
       )}
     </div>
