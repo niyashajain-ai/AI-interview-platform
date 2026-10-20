@@ -4,7 +4,7 @@ require("dotenv").config();
 
 const pool = require("./db");
 const requireAuth = require("./middleware/auth");
-const { reviewAnswer } = require("./ai");
+const { reviewAnswer, generateQuestions } = require("./ai");
 
 const app = express();
 app.use(cors());
@@ -205,6 +205,45 @@ app.get("/api/stats", requireAuth, async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Could not get stats" });
+  }
+});
+
+app.post("/api/questions/generate", requireAuth, async (req, res) => {
+  const topic = String(req.body.topic || "").trim().slice(0, 40);
+  const difficulty = ["Easy", "Medium", "Hard"].includes(req.body.difficulty)
+    ? req.body.difficulty
+    : "Medium";
+  const count = Math.min(Math.max(parseInt(req.body.count) || 3, 1), 5);
+
+  if (!topic) {
+    return res.status(400).json({ error: "Please enter a topic" });
+  }
+
+  let list;
+  try {
+    list = await generateQuestions(topic, difficulty, count);
+  } catch (aiErr) {
+    console.error(aiErr);
+    return res.status(503).json({ error: aiErr.message });
+  }
+
+  if (list.length === 0) {
+    return res
+      .status(502)
+      .json({ error: "The AI did not give usable questions, please try again" });
+  }
+
+  try {
+    for (const q of list) {
+      await pool.query(
+        "INSERT INTO questions (title, topic, difficulty, company, correct_answer) VALUES ($1, $2, $3, $4, $5)",
+        [q.title.trim(), topic, difficulty, "AI Generated", q.correct_answer.trim()]
+      );
+    }
+    res.status(201).json({ added: list.length });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Could not save the questions" });
   }
 });
 

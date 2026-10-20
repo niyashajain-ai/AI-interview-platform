@@ -10,6 +10,10 @@ function Home() {
   const [difficulty, setDifficulty] = useState("All");
   const [bookmarks, setBookmarks] = useState([]);
   const [savedOnly, setSavedOnly] = useState(false);
+  const [genTopic, setGenTopic] = useState("");
+  const [genDifficulty, setGenDifficulty] = useState("Medium");
+  const [generating, setGenerating] = useState(false);
+  const [genMessage, setGenMessage] = useState("");
 
   useEffect(() => {
     fetch("http://localhost:5000/api/questions", {
@@ -58,6 +62,46 @@ function Home() {
       console.error(err);
     }
   }
+
+  async function handleGenerate() {
+    setGenMessage("");
+    setGenerating(true);
+    try {
+      const res = await fetch("http://localhost:5000/api/questions/generate", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${getToken()}`,
+        },
+        body: JSON.stringify({ topic: genTopic, difficulty: genDifficulty, count: 3 }),
+      });
+
+      if (res.status === 401) {
+        logout();
+        navigate("/login");
+        return;
+      }
+
+      const data = await res.json();
+      if (!res.ok) {
+        setGenMessage(data.error || "Something went wrong");
+        return;
+      }
+
+      const listRes = await fetch("http://localhost:5000/api/questions", {
+        headers: { Authorization: `Bearer ${getToken()}` },
+      });
+      if (listRes.ok) setQuestions(await listRes.json());
+
+      setGenMessage(`Added ${data.added} new questions ✅`);
+      setGenTopic("");
+    } catch {
+      setGenMessage("Cannot reach the server");
+    } finally {
+      setGenerating(false);
+    }
+  }
+
   const topics = [...new Set(questions.map((q) => q.topic))].filter(Boolean);
   const difficulties = [...new Set(questions.map((q) => q.difficulty))].filter(Boolean);
 
@@ -81,6 +125,43 @@ function Home() {
             Log out
           </button>
         </div>
+      </div>
+      <div className="border rounded-lg p-4 mb-4 bg-gray-50">
+        <p className="font-semibold mb-2">✨ Generate questions with AI</p>
+        <div className="flex flex-wrap gap-3">
+          <input
+            list="topic-options"
+            value={genTopic}
+            onChange={(e) => setGenTopic(e.target.value)}
+            placeholder="Topic, e.g. React"
+            className="border rounded px-3 py-2 flex-1 min-w-40"
+          />
+          <datalist id="topic-options">
+            {topics.map((t) => (
+              <option key={t} value={t} />
+            ))}
+          </datalist>
+          <select
+            value={genDifficulty}
+            onChange={(e) => setGenDifficulty(e.target.value)}
+            className="border rounded px-3 py-2"
+          >
+            <option value="Easy">Easy</option>
+            <option value="Medium">Medium</option>
+            <option value="Hard">Hard</option>
+          </select>
+          <button
+            onClick={handleGenerate}
+            disabled={generating || !genTopic.trim()}
+            className="bg-blue-600 text-white px-4 py-2 rounded disabled:opacity-50"
+          >
+            {generating ? "Generating..." : "Generate 3 questions"}
+          </button>
+        </div>
+        {genMessage && <p className="mt-2">{genMessage}</p>}
+        <p className="text-xs text-gray-500 mt-2">
+          AI-made questions can have mistakes, so double-check the answers.
+        </p>
       </div>
       <div className="flex gap-3 mb-4">
         <select
