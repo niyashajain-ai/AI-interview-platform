@@ -1,8 +1,10 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { getToken, logout } from "../auth";
 
 const API = "http://localhost:5000";
+const SpeechRecognition =
+  window.SpeechRecognition || window.webkitSpeechRecognition;
 
 function MockHR() {
   const navigate = useNavigate();
@@ -14,12 +16,84 @@ function MockHR() {
   const [working, setWorking] = useState(false);
   const [message, setMessage] = useState("");
   const [summary, setSummary] = useState(null);
+  const [listening, setListening] = useState(false);
+  const [voiceMessage, setVoiceMessage] = useState("");
+  const recognitionRef = useRef(null);
+
+  useEffect(() => {
+    return () => {
+      if (recognitionRef.current) recognitionRef.current.stop();
+      if ("speechSynthesis" in window) window.speechSynthesis.cancel();
+    };
+  }, []);
 
   function authHeaders() {
     return {
       "Content-Type": "application/json",
       Authorization: `Bearer ${getToken()}`,
     };
+  }
+
+  function startListening() {
+    if (!SpeechRecognition) {
+      setVoiceMessage(
+        "Voice input is not supported in this browser. Please use Chrome or Edge."
+      );
+      return;
+    }
+    setVoiceMessage("");
+
+    const recognition = new SpeechRecognition();
+    recognition.lang = "en-IN";
+    recognition.continuous = true;
+    recognition.interimResults = false;
+
+    recognition.onresult = (event) => {
+      let text = "";
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        if (event.results[i].isFinal) {
+          text += event.results[i][0].transcript + " ";
+        }
+      }
+      if (text.trim()) {
+        setAnswer((prev) => (prev ? prev.trimEnd() + " " : "") + text.trim());
+      }
+    };
+
+    recognition.onerror = (event) => {
+      if (event.error === "not-allowed") {
+        setVoiceMessage(
+          "The microphone is blocked. Click the lock icon next to the address bar and allow the microphone."
+        );
+      } else if (event.error === "no-speech") {
+        setVoiceMessage("I did not hear anything. Please try again.");
+      } else {
+        setVoiceMessage("Voice problem: " + event.error);
+      }
+      setListening(false);
+    };
+
+    recognition.onend = () => setListening(false);
+
+    recognitionRef.current = recognition;
+    recognition.start();
+    setListening(true);
+  }
+
+  function stopListening() {
+    if (recognitionRef.current) recognitionRef.current.stop();
+    setListening(false);
+  }
+
+  function speakQuestion() {
+    if (!("speechSynthesis" in window)) {
+      setVoiceMessage("Reading aloud is not supported in this browser.");
+      return;
+    }
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(session.questions[index].title);
+    utterance.lang = "en-IN";
+    window.speechSynthesis.speak(utterance);
   }
 
   async function startMock() {
@@ -46,6 +120,7 @@ function MockHR() {
       setReview(null);
       setAnswered(false);
       setSummary(null);
+      setVoiceMessage("");
     } catch {
       setMessage("Cannot reach the server");
     } finally {
@@ -54,6 +129,7 @@ function MockHR() {
   }
 
   async function submitAnswer() {
+    stopListening();
     setMessage("");
     setWorking(true);
     try {
@@ -93,6 +169,10 @@ function MockHR() {
   }
 
   async function goNext() {
+    stopListening();
+    if ("speechSynthesis" in window) window.speechSynthesis.cancel();
+    setVoiceMessage("");
+
     const isLast = index === session.questions.length - 1;
     if (!isLast) {
       setIndex(index + 1);
@@ -139,7 +219,8 @@ function MockHR() {
         <div className="border rounded-lg p-4">
           <p className="mb-3">
             You will get up to 5 HR questions, one after another. Answer each
-            one, get AI feedback, and see your overall score at the end.
+            one by typing or by speaking, get AI feedback, and see your overall
+            score at the end.
           </p>
           <button
             onClick={startMock}
@@ -158,9 +239,36 @@ function MockHR() {
           </p>
           <h2 className="text-xl font-bold">{session.questions[index].title}</h2>
 
+          <div className="flex flex-wrap items-center gap-3 mt-3">
+            <button
+              onClick={speakQuestion}
+              className="border rounded px-3 py-1 hover:bg-gray-100"
+            >
+              🔊 Read question aloud
+            </button>
+            {!answered && (
+              <button
+                onClick={listening ? stopListening : startListening}
+                className={
+                  listening
+                    ? "border border-red-600 text-red-600 rounded px-3 py-1"
+                    : "border rounded px-3 py-1 hover:bg-gray-100"
+                }
+              >
+                {listening ? "⏹ Stop recording" : "🎙 Speak your answer"}
+              </button>
+            )}
+            {listening && (
+              <span className="text-red-600 text-sm">● Listening...</span>
+            )}
+          </div>
+          {voiceMessage && (
+            <p className="text-sm text-red-600 mt-2">{voiceMessage}</p>
+          )}
+
           <textarea
-            className="w-full border rounded p-3 mt-4 h-40"
-            placeholder="Type your answer here..."
+            className="w-full border rounded p-3 mt-3 h-40"
+            placeholder="Type your answer here, or click Speak your answer..."
             value={answer}
             onChange={(e) => setAnswer(e.target.value)}
             disabled={answered}

@@ -1,5 +1,6 @@
 const express = require("express");
 const cors = require("cors");
+const mammoth = require("mammoth");
 require("dotenv").config();
 
 const pool = require("./db");
@@ -8,7 +9,7 @@ const { reviewAnswer, generateQuestions, reviewResume } = require("./ai");
 
 const app = express();
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: "10mb"}));
 
 app.get("/api/health", (req, res) => {
   res.json({ status: "ok" });
@@ -447,17 +448,54 @@ app.post("/api/mock/:sessionId/finish", requireAuth, async (req, res) => {
 
 app.post("/api/resume", requireAuth, async (req, res) => {
   const targetRole = String(req.body.targetRole || "").trim().slice(0, 80);
-  const resumeText = String(req.body.resumeText || "").trim().slice(0, 8000);
+  let resumeText = String(req.body.resumeText || "").trim().slice(0, 8000);
+  const fileType = req.body.fileType;
+  const fileData = typeof req.body.fileData === "string" ? req.body.fileData : "";
 
-  if (!targetRole || resumeText.length < 100) {
+  if (!targetRole) {
+    return res.status(400).json({ error: "Please enter a target role" });
+  }
+
+  let pdfBase64 = null;
+
+  if (fileData) {
+    const buffer = Buffer.from(fileData, "base64");
+    if (buffer.length === 0 || buffer.length > 5 * 1024 * 1024) {
+      return res.status(400).json({ error: "The file must be smaller than 5 MB" });
+    }
+
+    if (fileType === "pdf") {
+      if (buffer.subarray(0, 4).toString() !== "%PDF") {
+        return res.status(400).json({ error: "This does not look like a real PDF file" });
+      }
+      pdfBase64 = fileData;
+    } else if (fileType === "docx") {
+      if (buffer.subarray(0, 2).toString() !== "PK") {
+        return res.status(400).json({ error: "This does not look like a real Word file" });
+      }
+      try {
+        const extracted = await mammoth.extractRawText({ buffer });
+        resumeText = extracted.value.trim().slice(0, 8000);
+      } catch (err) {
+        console.error(err);
+        return res.status(400).json({ error: "Could not read this Word file" });
+      }
+    } else {
+      return res
+        .status(400)
+        .json({ error: "Only PDF and Word (.docx) files are supported" });
+    }
+  }
+
+  if (!pdfBase64 && resumeText.length < 100) {
     return res.status(400).json({
-      error: "Please enter a target role and paste your resume (at least a few lines)",
+      error: "Please upload your resume or paste at least a few lines of it",
     });
   }
 
   let review;
   try {
-    review = await reviewResume(targetRole, resumeText);
+    review = await reviewResume(targetRole, resumeText, pdfBase64);
   } catch (aiErr) {
     console.error(aiErr);
     return res.status(503).json({ error: aiErr.message });
@@ -474,6 +512,5 @@ app.post("/api/resume", requireAuth, async (req, res) => {
 
   res.json({ review });
 });
-
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
