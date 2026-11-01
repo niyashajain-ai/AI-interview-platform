@@ -1,6 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { getToken, logout } from "../auth";
+import ScoreRing from "../components/ScoreRing";
+import { alertClass, difficultyBadge, topicIcon, verdict } from "../components/ui";
 
 function Question() {
   const { id } = useParams();
@@ -13,8 +15,15 @@ function Question() {
   const [review, setReview] = useState(null);
   const [note, setNote] = useState("");
   const [noteMessage, setNoteMessage] = useState("");
+  const reviewRef = useRef(null);
 
   useEffect(() => {
+    setQuestion(null);
+    setReview(null);
+    setAnswer("");
+    setMessage("");
+    setError("");
+
     fetch(`http://localhost:5000/api/questions/${id}`, {
       headers: { Authorization: `Bearer ${getToken()}` },
     })
@@ -42,26 +51,15 @@ function Question() {
       headers: { Authorization: `Bearer ${getToken()}` },
     })
       .then((res) => (res.ok ? res.json() : { content: "" }))
-      .then((data) => setNote(data.content))
+      .then((data) => setNote(data.content || ""))
       .catch((err) => console.error(err));
   }, [id]);
 
-  async function saveNote() {
-    setNoteMessage("");
-    try {
-      const res = await fetch(`http://localhost:5000/api/notes/${id}`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${getToken()}`,
-        },
-        body: JSON.stringify({ content: note }),
-      });
-      setNoteMessage(res.ok ? "Note saved ✅" : "Could not save the note");
-    } catch {
-      setNoteMessage("Cannot reach the server");
+  useEffect(() => {
+    if (review && reviewRef.current) {
+      reviewRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
     }
-  }
+  }, [review]);
 
   async function handleSubmit() {
     setMessage("");
@@ -91,7 +89,7 @@ function Question() {
       } else {
         setMessage(
           "Your answer was saved, but the AI review failed: " +
-          (data.aiError || "please try again in a minute")
+            (data.aiError || "please try again in a minute")
         );
       }
     } catch {
@@ -101,66 +99,156 @@ function Question() {
     }
   }
 
+  async function saveNote() {
+    setNoteMessage("");
+    try {
+      const res = await fetch(`http://localhost:5000/api/notes/${id}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${getToken()}`,
+        },
+        body: JSON.stringify({ content: note }),
+      });
+      setNoteMessage(res.ok ? "Note saved ✅" : "Could not save the note");
+    } catch {
+      setNoteMessage("Cannot reach the server");
+    }
+  }
+
   return (
-    <div className="max-w-2xl mx-auto p-6">
-      <Link to="/" className="text-blue-600 underline">
-        ← Back to questions
+    <div className="flex flex-col gap-5">
+      <Link to="/" className="btn btn-ghost btn-sm" style={{ alignSelf: "flex-start" }}>
+        ← All questions
       </Link>
 
-      {error && <p className="text-red-600 mt-4">{error}</p>}
+      {error && <div className="alert alert-error">{error}</div>}
+
+      {!question && !error && <div className="skeleton" style={{ height: 140 }} />}
 
       {question && (
-        <div className="mt-4">
-          <p className="text-sm text-gray-600 mb-2">
-            {question.topic} • {question.difficulty} • {question.company}
-          </p>
-          <h1 className="text-2xl font-bold">{question.title}</h1>
-          <textarea
-            className="w-full border rounded p-3 mt-6 h-40"
-            placeholder="Type your answer here..."
-            value={answer}
-            onChange={(e) => setAnswer(e.target.value)}
-          />
-          <button
-            onClick={handleSubmit}
-            disabled={saving}
-            className="mt-3 bg-blue-600 text-white px-4 py-2 rounded disabled:opacity-50"
-          >
-            {saving ? "AI is reviewing your answer..." : "Submit answer"}
-          </button>
-          {message && <p className="mt-3">{message}</p>}
-          {review && (
-            <div className="mt-6 border rounded p-4 bg-gray-50">
-              <p className="text-xl font-bold">Score: {review.score} / 10</p>
-
-              <h3 className="font-semibold mt-4">👍 What was good</h3>
-              <p>{review.good}</p>
-
-              <h3 className="font-semibold mt-4">⚠️ What to improve</h3>
-              <p>{review.wrong}</p>
-
-              <h3 className="font-semibold mt-4">✨ A better answer</h3>
-              <p>{review.better_answer}</p>
-
-              <h3 className="font-semibold mt-4">❓ Follow-up question</h3>
-              <p>{review.follow_up}</p>
+        <div className="card p-6 fade-in">
+          <div className="flex flex-wrap items-center gap-2 mb-3">
+            <span className="badge badge-primary">
+              {topicIcon(question.topic)} {question.topic}
+            </span>
+            <span className={difficultyBadge(question.difficulty)}>{question.difficulty}</span>
+            {question.company && <span className="badge badge-muted">🏢 {question.company}</span>}
+          </div>
+          <h1 className="text-2xl font-extrabold" style={{ margin: 0, lineHeight: 1.35 }}>
+            {question.title}
+          </h1>
+          {question.link && (
+            <div className="mt-4">
+              <a
+                href={question.link}
+                target="_blank"
+                rel="noreferrer"
+                className="btn btn-ghost btn-sm"
+              >
+                Open the full problem on Codeforces ↗
+              </a>
+              <p className="muted text-sm" style={{ margin: "8px 0 0" }}>
+                Read the problem there, then explain your approach in words below.
+              </p>
             </div>
           )}
-          <div className="mt-8">
-            <h3 className="font-semibold">📝 My notes</h3>
+        </div>
+      )}
+
+      {question && (
+        <div className="grid gap-5 lg:grid-cols-[2fr_1fr]">
+          <div className="flex flex-col gap-5">
+            <div className="card p-5">
+              <p className="font-bold" style={{ margin: "0 0 10px" }}>✍️ Your answer</p>
+              <textarea
+                className="input"
+                style={{ height: 180 }}
+                placeholder="Type your answer here... (Ctrl + Enter to submit)"
+                value={answer}
+                onChange={(e) => setAnswer(e.target.value)}
+                onKeyDown={(e) => {
+                  if ((e.ctrlKey || e.metaKey) && e.key === "Enter" && answer.trim() && !saving) {
+                    handleSubmit();
+                  }
+                }}
+              />
+              <div className="flex items-center justify-between gap-3 mt-3">
+                <span className="muted text-sm">{answer.length} characters</span>
+                <button
+                  onClick={handleSubmit}
+                  disabled={saving || !answer.trim()}
+                  className="btn btn-primary"
+                >
+                  {saving ? (
+                    <>
+                      <span className="spinner" /> AI is reviewing...
+                    </>
+                  ) : (
+                    "Submit answer 🚀"
+                  )}
+                </button>
+              </div>
+              {message && <div className={`${alertClass(message)} mt-3`}>{message}</div>}
+            </div>
+
+            {saving && (
+              <div className="card p-5 text-center fade-in">
+                <p style={{ margin: 0 }}>🤖 The AI is reading your answer</p>
+                <div className="dots muted">
+                  <span>●</span> <span>●</span> <span>●</span>
+                </div>
+              </div>
+            )}
+
+            {review && (
+              <div ref={reviewRef} className="card p-5 fade-in" style={{ scrollMarginTop: 120 }}>
+                <div className="flex flex-wrap items-center gap-5 mb-4">
+                  <ScoreRing value={review.score} />
+                  <div>
+                    <p className="text-xl font-extrabold" style={{ margin: 0 }}>
+                      {verdict(review.score)}
+                    </p>
+                    <p className="muted" style={{ margin: "4px 0 0" }}>
+                      Here is your AI feedback
+                    </p>
+                  </div>
+                </div>
+                <div className="flex flex-col gap-3">
+                  <div className="review-box review-good">
+                    <h4>👍 What was good</h4>
+                    <p>{review.good}</p>
+                  </div>
+                  <div className="review-box review-bad">
+                    <h4>⚠️ What to improve</h4>
+                    <p>{review.wrong}</p>
+                  </div>
+                  <div className="review-box review-better">
+                    <h4>✨ A better answer</h4>
+                    <p>{review.better_answer}</p>
+                  </div>
+                  <div className="review-box review-follow">
+                    <h4>❓ Follow-up question</h4>
+                    <p>{review.follow_up}</p>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="card p-5" style={{ alignSelf: "start" }}>
+            <p className="font-bold" style={{ margin: "0 0 10px" }}>📝 My notes</p>
             <textarea
-              className="w-full border rounded p-3 mt-2 h-28"
+              className="input"
+              style={{ height: 150 }}
               placeholder="Write anything you want to remember about this question..."
               value={note}
               onChange={(e) => setNote(e.target.value)}
             />
-            <button
-              onClick={saveNote}
-              className="mt-2 border border-blue-600 text-blue-600 px-4 py-2 rounded"
-            >
+            <button onClick={saveNote} className="btn btn-ghost mt-3" style={{ width: "100%" }}>
               Save note
             </button>
-            {noteMessage && <p className="mt-2">{noteMessage}</p>}
+            {noteMessage && <div className={`${alertClass(noteMessage)} mt-3`}>{noteMessage}</div>}
           </div>
         </div>
       )}

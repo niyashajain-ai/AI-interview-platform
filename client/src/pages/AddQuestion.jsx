@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { getToken, logout } from "../auth";
+import { alertClass } from "../components/ui";
 
 function AddQuestion() {
   const navigate = useNavigate();
@@ -17,7 +18,11 @@ function AddQuestion() {
       headers: { Authorization: `Bearer ${getToken()}` },
     })
       .then((res) => (res.ok ? res.json() : []))
-      .then((data) => setTopics([...new Set(data.map((q) => q.topic))].filter(Boolean)))
+      .then((data) =>
+        setTopics(
+          Array.isArray(data) ? [...new Set(data.map((q) => q.topic))].filter(Boolean) : []
+        )
+      )
       .catch((err) => console.error(err));
   }, []);
 
@@ -56,63 +61,74 @@ function AddQuestion() {
   }
 
   return (
-    <div className="max-w-2xl mx-auto p-6">
-      <Link to="/" className="text-blue-600 underline">
-        ← Back to questions
-      </Link>
-      <h1 className="text-2xl font-bold mt-4 mb-2">➕ Add a question</h1>
-      <p className="text-sm text-gray-600 mb-4">
-        Your question will be visible to everyone using the app. Adding a model
-        answer helps the AI give better feedback.
-      </p>
+    <div className="flex flex-col gap-5">
+      <div>
+        <h1 className="text-3xl font-extrabold" style={{ margin: 0 }}>
+          ➕ Add a <span className="gradient-text">question</span>
+        </h1>
+        <p className="muted" style={{ margin: "4px 0 0" }}>
+          Your question will be visible to everyone. A model answer helps the AI give better feedback.
+        </p>
+      </div>
 
-      <textarea
-        value={title}
-        onChange={(e) => setTitle(e.target.value)}
-        placeholder="The interview question"
-        className="w-full border rounded p-3 h-24"
-      />
+      <div className="card p-6 fade-in">
+        <label className="font-semibold text-sm">The interview question</label>
+        <textarea
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          placeholder="e.g. What is the difference between props and state?"
+          className="input mt-2"
+          style={{ height: 90 }}
+        />
 
-      <div className="flex flex-wrap gap-3 mt-3">
+        <label className="font-semibold text-sm block mt-4">Topic</label>
         <input
           list="add-topic-options"
           value={topic}
           onChange={(e) => setTopic(e.target.value)}
-          placeholder="Topic, e.g. React"
-          className="border rounded px-3 py-2 flex-1 min-w-40"
+          placeholder="e.g. React"
+          className="input mt-2"
         />
         <datalist id="add-topic-options">
           {topics.map((t) => (
             <option key={t} value={t} />
           ))}
         </datalist>
-        <select
-          value={difficulty}
-          onChange={(e) => setDifficulty(e.target.value)}
-          className="border rounded px-3 py-2"
+        <div className="flex flex-wrap gap-2 mt-2">
+          {topics.slice(0, 8).map((t) => (
+            <button key={t} className={topic === t ? "chip active" : "chip"} onClick={() => setTopic(t)}>
+              {t}
+            </button>
+          ))}
+        </div>
+
+        <label className="font-semibold text-sm block mt-4">Difficulty</label>
+        <div className="flex gap-2 mt-2">
+          {["Easy", "Medium", "Hard"].map((d) => (
+            <button key={d} className={difficulty === d ? "chip active" : "chip"} onClick={() => setDifficulty(d)}>
+              {d}
+            </button>
+          ))}
+        </div>
+
+        <label className="font-semibold text-sm block mt-4">Model answer (optional)</label>
+        <textarea
+          value={answer}
+          onChange={(e) => setAnswer(e.target.value)}
+          placeholder="A short, correct answer the AI can compare with..."
+          className="input mt-2"
+          style={{ height: 120 }}
+        />
+
+        <button
+          onClick={handleSave}
+          disabled={saving || !title.trim() || !topic.trim()}
+          className="btn btn-primary mt-5"
         >
-          <option value="Easy">Easy</option>
-          <option value="Medium">Medium</option>
-          <option value="Hard">Hard</option>
-        </select>
+          {saving ? (<><span className="spinner" /> Saving...</>) : "Add question"}
+        </button>
+        {message && <div className={`${alertClass(message)} mt-3`}>{message}</div>}
       </div>
-
-      <textarea
-        value={answer}
-        onChange={(e) => setAnswer(e.target.value)}
-        placeholder="Model answer (optional)"
-        className="w-full border rounded p-3 h-32 mt-3"
-      />
-
-      <button
-        onClick={handleSave}
-        disabled={saving || !title.trim() || !topic.trim()}
-        className="mt-3 bg-blue-600 text-white px-4 py-2 rounded disabled:opacity-50"
-      >
-        {saving ? "Saving..." : "Add question"}
-      </button>
-
-      {message && <p className="mt-3">{message}</p>}
     </div>
   );
 }

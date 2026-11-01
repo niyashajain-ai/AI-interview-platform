@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { getToken, logout } from "../auth";
+import ScoreRing from "../components/ScoreRing";
+import { alertClass, scoreColor, verdict } from "../components/ui";
 
 const API = "http://localhost:5000";
-const SpeechRecognition =
-  window.SpeechRecognition || window.webkitSpeechRecognition;
+const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 
 function MockHR() {
   const navigate = useNavigate();
@@ -36,9 +37,7 @@ function MockHR() {
 
   function startListening() {
     if (!SpeechRecognition) {
-      setVoiceMessage(
-        "Voice input is not supported in this browser. Please use Chrome or Edge."
-      );
+      setVoiceMessage("Voice input is not supported in this browser. Please use Chrome or Edge.");
       return;
     }
     setVoiceMessage("");
@@ -208,107 +207,104 @@ function MockHR() {
     }
   }
 
+  const total = session ? session.questions.length : 0;
+  const progress = session ? ((index + (answered ? 1 : 0)) / total) * 100 : 0;
+
   return (
-    <div className="max-w-2xl mx-auto p-6">
-      <Link to="/" className="text-blue-600 underline">
-        ← Back to questions
-      </Link>
-      <h1 className="text-2xl font-bold mt-4 mb-6">🎤 HR Mock Round</h1>
+    <div className="flex flex-col gap-5">
+      <div>
+        <h1 className="text-3xl font-extrabold" style={{ margin: 0 }}>
+          🎤 HR <span className="gradient-text">Mock Round</span>
+        </h1>
+        <p className="muted" style={{ margin: "4px 0 0" }}>
+          Answer like it is a real interview. You can type or speak.
+        </p>
+      </div>
 
       {!session && (
-        <div className="border rounded-lg p-4">
-          <p className="mb-3">
-            You will get up to 5 HR questions, one after another. Answer each
-            one by typing or by speaking, get AI feedback, and see your overall
-            score at the end.
-          </p>
-          <button
-            onClick={startMock}
-            disabled={working}
-            className="bg-blue-600 text-white px-4 py-2 rounded disabled:opacity-50"
-          >
-            {working ? "Starting..." : "Start HR mock"}
+        <div className="card p-6 fade-in">
+          <p style={{ margin: "0 0 6px" }} className="font-bold">How it works</p>
+          <div className="grid gap-3 sm:grid-cols-3 mb-5">
+            <div className="review-box review-follow"><h4>1️⃣ Get questions</h4><p>Up to 5 random HR questions.</p></div>
+            <div className="review-box review-follow"><h4>2️⃣ Answer</h4><p>Type it, or click the mic and speak.</p></div>
+            <div className="review-box review-follow"><h4>3️⃣ Get your score</h4><p>AI feedback on each answer and an overall score.</p></div>
+          </div>
+          <button onClick={startMock} disabled={working} className="btn btn-primary">
+            {working ? (<><span className="spinner" /> Starting...</>) : "Start HR mock 🚀"}
           </button>
         </div>
       )}
 
       {session && !summary && (
-        <div>
-          <p className="text-sm text-gray-600 mb-2">
-            Question {index + 1} of {session.questions.length}
-          </p>
-          <h2 className="text-xl font-bold">{session.questions[index].title}</h2>
+        <div className="flex flex-col gap-4 fade-in">
+          <div>
+            <div className="flex justify-between text-sm mb-1">
+              <span className="font-semibold">Question {index + 1} of {total}</span>
+              <span className="muted">{Math.round(progress)}% done</span>
+            </div>
+            <div className="progress"><div style={{ width: `${progress}%` }} /></div>
+          </div>
 
-          <div className="flex flex-wrap items-center gap-3 mt-3">
-            <button
-              onClick={speakQuestion}
-              className="border rounded px-3 py-1 hover:bg-gray-100"
-            >
-              🔊 Read question aloud
-            </button>
+          <div className="card p-6">
+            <h2 className="text-xl font-bold" style={{ margin: 0, lineHeight: 1.4 }}>
+              {session.questions[index].title}
+            </h2>
+
+            <div className="flex flex-wrap items-center gap-3 mt-4">
+              <button onClick={speakQuestion} className="btn btn-ghost btn-sm">
+                🔊 Read question aloud
+              </button>
+              {!answered && (
+                <button
+                  onClick={listening ? stopListening : startListening}
+                  className={listening ? "btn btn-ghost btn-sm mic-active" : "btn btn-ghost btn-sm"}
+                >
+                  {listening ? "⏹ Stop recording" : "🎙 Speak your answer"}
+                </button>
+              )}
+              {listening && <span className="text-sm" style={{ color: "var(--danger)" }}>● Listening...</span>}
+            </div>
+            {voiceMessage && <div className="alert alert-error mt-3">{voiceMessage}</div>}
+
+            <textarea
+              className="input mt-4"
+              style={{ height: 160 }}
+              placeholder="Type your answer here, or click Speak your answer..."
+              value={answer}
+              onChange={(e) => setAnswer(e.target.value)}
+              disabled={answered}
+            />
+
             {!answered && (
               <button
-                onClick={listening ? stopListening : startListening}
-                className={
-                  listening
-                    ? "border border-red-600 text-red-600 rounded px-3 py-1"
-                    : "border rounded px-3 py-1 hover:bg-gray-100"
-                }
+                onClick={submitAnswer}
+                disabled={working || !answer.trim()}
+                className="btn btn-primary mt-3"
               >
-                {listening ? "⏹ Stop recording" : "🎙 Speak your answer"}
+                {working ? (<><span className="spinner" /> AI is reviewing...</>) : "Submit answer"}
               </button>
             )}
-            {listening && (
-              <span className="text-red-600 text-sm">● Listening...</span>
-            )}
+            {message && <div className={`${alertClass(message)} mt-3`}>{message}</div>}
           </div>
-          {voiceMessage && (
-            <p className="text-sm text-red-600 mt-2">{voiceMessage}</p>
-          )}
-
-          <textarea
-            className="w-full border rounded p-3 mt-3 h-40"
-            placeholder="Type your answer here, or click Speak your answer..."
-            value={answer}
-            onChange={(e) => setAnswer(e.target.value)}
-            disabled={answered}
-          />
-
-          {!answered && (
-            <button
-              onClick={submitAnswer}
-              disabled={working || !answer.trim()}
-              className="mt-3 bg-blue-600 text-white px-4 py-2 rounded disabled:opacity-50"
-            >
-              {working ? "AI is reviewing your answer..." : "Submit answer"}
-            </button>
-          )}
 
           {review && (
-            <div className="mt-6 border rounded p-4 bg-gray-50">
-              <p className="text-xl font-bold">Score: {review.score} / 10</p>
-
-              <h3 className="font-semibold mt-4">👍 What was good</h3>
-              <p>{review.good}</p>
-
-              <h3 className="font-semibold mt-4">⚠️ What to improve</h3>
-              <p>{review.wrong}</p>
-
-              <h3 className="font-semibold mt-4">✨ A better answer</h3>
-              <p>{review.better_answer}</p>
+            <div className="card p-5 fade-in">
+              <div className="flex flex-wrap items-center gap-5 mb-4">
+                <ScoreRing value={review.score} size={100} />
+                <p className="text-xl font-extrabold" style={{ margin: 0 }}>{verdict(review.score)}</p>
+              </div>
+              <div className="flex flex-col gap-3">
+                <div className="review-box review-good"><h4>👍 What was good</h4><p>{review.good}</p></div>
+                <div className="review-box review-bad"><h4>⚠️ What to improve</h4><p>{review.wrong}</p></div>
+                <div className="review-box review-better"><h4>✨ A better answer</h4><p>{review.better_answer}</p></div>
+              </div>
             </div>
           )}
 
           {answered && (
-            <button
-              onClick={goNext}
-              disabled={working}
-              className="mt-4 bg-green-600 text-white px-4 py-2 rounded disabled:opacity-50"
-            >
-              {index === session.questions.length - 1
-                ? working
-                  ? "Finishing..."
-                  : "Finish and see my score"
+            <button onClick={goNext} disabled={working} className="btn btn-success" style={{ alignSelf: "flex-start" }}>
+              {index === total - 1
+                ? working ? "Finishing..." : "Finish and see my score 🏁"
                 : "Next question →"}
             </button>
           )}
@@ -316,28 +312,29 @@ function MockHR() {
       )}
 
       {summary && (
-        <div className="border rounded-lg p-4">
-          <p className="text-3xl font-bold">
-            Overall: {summary.overall_score ?? "-"} / 10
-          </p>
-          <h3 className="font-semibold mt-4 mb-2">Your answers</h3>
+        <div className="card p-6 fade-in">
+          <div className="flex flex-wrap items-center gap-6 mb-5">
+            <ScoreRing value={summary.overall_score ?? 0} size={140} />
+            <div>
+              <p className="text-2xl font-extrabold" style={{ margin: 0 }}>{verdict(summary.overall_score)}</p>
+              <p className="muted" style={{ margin: "4px 0 0" }}>Your overall HR mock score</p>
+            </div>
+          </div>
+          <p className="font-bold" style={{ margin: "0 0 8px" }}>Your answers</p>
           {summary.results.map((r, i) => (
-            <div key={i} className="flex justify-between border-b py-2">
+            <div key={i} className="flex justify-between gap-3 p-3 mb-2" style={{ borderRadius: 12, background: "var(--surface-2)" }}>
               <span>{r.title}</span>
-              <span className="text-gray-600">{r.score ?? "-"} / 10</span>
+              <b style={{ color: scoreColor(r.score) }}>{r.score ?? "-"} / 10</b>
             </div>
           ))}
-          <button
-            onClick={startMock}
-            disabled={working}
-            className="mt-4 bg-blue-600 text-white px-4 py-2 rounded disabled:opacity-50"
-          >
-            Try another round
-          </button>
+          <div className="flex flex-wrap gap-3 mt-4">
+            <button onClick={startMock} disabled={working} className="btn btn-primary">Try another round</button>
+            <Link to="/dashboard" className="btn btn-ghost">📊 See my progress</Link>
+          </div>
         </div>
       )}
 
-      {message && <p className="mt-4 text-red-600">{message}</p>}
+      {!session && message && <div className={alertClass(message)}>{message}</div>}
     </div>
   );
 }

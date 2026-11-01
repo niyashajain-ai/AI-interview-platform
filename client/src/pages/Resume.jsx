@@ -1,6 +1,8 @@
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { getToken, logout } from "../auth";
+import ScoreRing from "../components/ScoreRing";
+import { alertClass, verdict } from "../components/ui";
 
 function Resume() {
   const navigate = useNavigate();
@@ -10,10 +12,9 @@ function Resume() {
   const [review, setReview] = useState(null);
   const [working, setWorking] = useState(false);
   const [message, setMessage] = useState("");
+  const [dragging, setDragging] = useState(false);
 
-  function handleFile(e) {
-    const picked = e.target.files[0];
-    e.target.value = "";
+  function processFile(picked) {
     setMessage("");
     if (!picked) return;
 
@@ -48,6 +49,18 @@ function Resume() {
     }
 
     setMessage("Please choose a PDF, Word (.docx) or .txt file");
+  }
+
+  function handleFileInput(e) {
+    const picked = e.target.files[0];
+    e.target.value = "";
+    processFile(picked);
+  }
+
+  function handleDrop(e) {
+    e.preventDefault();
+    setDragging(false);
+    processFile(e.dataTransfer.files[0]);
   }
 
   async function handleReview() {
@@ -92,96 +105,107 @@ function Resume() {
     return Array.isArray(items) ? items : [];
   }
 
-  const canReview =
-    targetRole.trim() && (file || resumeText.trim().length >= 100);
+  const canReview = targetRole.trim() && (file || resumeText.trim().length >= 100);
 
   return (
-    <div className="max-w-2xl mx-auto p-6">
-      <Link to="/" className="text-blue-600 underline">
-        ← Back to questions
-      </Link>
-      <h1 className="text-2xl font-bold mt-4 mb-2">📄 Resume Review</h1>
-      <p className="text-sm text-gray-600 mb-4">
-        Upload your resume (PDF or Word) or paste its text. Your file is sent to
-        an AI service (Google Gemini) to be read, and only the feedback is saved
-        in our database. For privacy, you can remove your phone number, email and
-        home address first.
-      </p>
-
-      <input
-        value={targetRole}
-        onChange={(e) => setTargetRole(e.target.value)}
-        placeholder="Target role, e.g. Frontend Developer Intern"
-        className="w-full border rounded px-3 py-2 mb-3"
-      />
-
-      <label className="inline-block border rounded px-4 py-2 cursor-pointer hover:bg-gray-100">
-        📎 Upload resume (PDF, DOCX or TXT)
-        <input
-          type="file"
-          accept=".pdf,.docx,.txt"
-          onChange={handleFile}
-          className="hidden"
-        />
-      </label>
-
-      {file ? (
-        <div className="mt-3 border rounded p-3 flex justify-between items-center bg-gray-50">
-          <span>📄 {file.name}</span>
-          <button
-            onClick={() => setFile(null)}
-            className="text-red-600 underline text-sm"
-          >
-            Remove
-          </button>
-        </div>
-      ) : (
-        <>
-          <p className="text-sm text-gray-600 mt-3 mb-1">Or paste your resume text:</p>
-          <textarea
-            value={resumeText}
-            onChange={(e) => setResumeText(e.target.value)}
-            placeholder="Paste your resume text here..."
-            className="w-full border rounded p-3 h-64"
-          />
-        </>
-      )}
-
+    <div className="flex flex-col gap-5">
       <div>
+        <h1 className="text-3xl font-extrabold" style={{ margin: 0 }}>
+          📄 Resume <span className="gradient-text">Review</span>
+        </h1>
+        <p className="muted" style={{ margin: "4px 0 0" }}>
+          Upload your resume and get instant feedback for the role you want.
+        </p>
+      </div>
+
+      <div className="card p-6 fade-in">
+        <label className="font-semibold text-sm">Target role</label>
+        <input
+          value={targetRole}
+          onChange={(e) => setTargetRole(e.target.value)}
+          placeholder="e.g. Frontend Developer Intern"
+          className="input mt-2 mb-4"
+        />
+
+        {file ? (
+          <div className="flex justify-between items-center p-4" style={{ borderRadius: 14, background: "var(--primary-soft)" }}>
+            <span className="font-semibold">📄 {file.name}</span>
+            <button onClick={() => setFile(null)} className="btn btn-danger btn-sm">Remove</button>
+          </div>
+        ) : (
+          <>
+            <label
+              className={dragging ? "dropzone drag block" : "dropzone block"}
+              onDragOver={(e) => {
+                e.preventDefault();
+                setDragging(true);
+              }}
+              onDragLeave={() => setDragging(false)}
+              onDrop={handleDrop}
+            >
+              <div className="text-4xl">📎</div>
+              <p className="font-semibold" style={{ margin: "6px 0 2px" }}>
+                Drag your resume here, or click to browse
+              </p>
+              <p className="muted text-sm" style={{ margin: 0 }}>PDF, DOCX or TXT • up to 5 MB</p>
+              <input type="file" accept=".pdf,.docx,.txt" onChange={handleFileInput} className="hidden" />
+            </label>
+
+            <p className="muted text-sm mt-4 mb-2">Or paste your resume text:</p>
+            <textarea
+              value={resumeText}
+              onChange={(e) => setResumeText(e.target.value)}
+              placeholder="Paste your resume text here..."
+              className="input"
+              style={{ height: 200 }}
+            />
+          </>
+        )}
+
+        <p className="muted text-xs mt-3" style={{ marginBottom: 0 }}>
+          🔒 Your file is sent to an AI service (Google Gemini) to be read, and only the feedback is
+          saved in our database. You can remove your phone number, email and address first.
+        </p>
+
         <button
           onClick={handleReview}
           disabled={working || !canReview}
-          className="mt-3 bg-blue-600 text-white px-4 py-2 rounded disabled:opacity-50"
+          className="btn btn-primary mt-4"
         >
-          {working ? "AI is reviewing your resume..." : "Review my resume"}
+          {working ? (<><span className="spinner" /> AI is reading your resume...</>) : "Review my resume ✨"}
         </button>
+        {message && <div className={`${alertClass(message)} mt-3`}>{message}</div>}
       </div>
 
-      {message && <p className="mt-4 text-red-600">{message}</p>}
-
       {review && (
-        <div className="mt-6 border rounded p-4 bg-gray-50">
-          <p className="text-xl font-bold">Score: {review.score} / 10</p>
-          <p className="mt-2">{review.summary}</p>
+        <div className="card p-6 fade-in">
+          <div className="flex flex-wrap items-center gap-6 mb-5">
+            <ScoreRing value={review.score} size={130} />
+            <div style={{ flex: 1, minWidth: 220 }}>
+              <p className="text-2xl font-extrabold" style={{ margin: 0 }}>{verdict(review.score)}</p>
+              <p style={{ margin: "6px 0 0", lineHeight: 1.55 }}>{review.summary}</p>
+            </div>
+          </div>
 
-          <h3 className="font-semibold mt-4">👍 Strengths</h3>
-          <ul className="list-disc ml-6">
-            {list(review.strengths).map((s, i) => (
-              <li key={i}>{s}</li>
-            ))}
-          </ul>
+          <div className="grid gap-3 md:grid-cols-2">
+            <div className="review-box review-good">
+              <h4>👍 Strengths</h4>
+              <ul style={{ margin: 0, paddingLeft: 18, lineHeight: 1.6 }}>
+                {list(review.strengths).map((s, i) => (<li key={i}>{s}</li>))}
+              </ul>
+            </div>
+            <div className="review-box review-bad">
+              <h4>⚠️ What to improve</h4>
+              <ul style={{ margin: 0, paddingLeft: 18, lineHeight: 1.6 }}>
+                {list(review.improvements).map((s, i) => (<li key={i}>{s}</li>))}
+              </ul>
+            </div>
+          </div>
 
-          <h3 className="font-semibold mt-4">⚠️ What to improve</h3>
-          <ul className="list-disc ml-6">
-            {list(review.improvements).map((s, i) => (
-              <li key={i}>{s}</li>
-            ))}
-          </ul>
-
-          <h3 className="font-semibold mt-4">🔑 Keywords to add</h3>
-          <div className="flex flex-wrap gap-2 mt-2">
+          <p className="font-bold" style={{ margin: "18px 0 8px" }}>🔑 Keywords to add</p>
+          <div className="flex flex-wrap gap-2">
             {list(review.missing_keywords).map((k, i) => (
-              <span key={i} className="border rounded-full px-3 py-1 text-sm bg-white">
+              <span key={i} className="badge badge-primary" style={{ fontSize: ".85rem", padding: "5px 12px" }}>
                 {k}
               </span>
             ))}

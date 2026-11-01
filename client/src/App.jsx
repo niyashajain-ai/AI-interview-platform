@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import "./theme.css";
 import Home from "./pages/Home";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
@@ -10,81 +11,26 @@ import MockCompany from "./pages/MockCompany";
 import Resume from "./pages/Resume";
 import History from "./pages/History";
 import AddQuestion from "./pages/AddQuestion";
+import Layout from "./components/Layout";
 
-function ProtectedRoute({ children }) {
-  return getToken() ? children : <Navigate to="/login" />;
+function Protected({ children }) {
+  return getToken() ? <Layout>{children}</Layout> : <Navigate to="/login" />;
 }
 
 function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route
-          path="/"
-          element={
-            <ProtectedRoute>
-              <Home />
-            </ProtectedRoute>
-          }
-        />
+        <Route path="/" element={<Protected><Home /></Protected>} />
         <Route path="/login" element={<Login />} />
         <Route path="/signup" element={<Signup />} />
-        <Route
-          path="/question/:id"
-          element={
-            <ProtectedRoute>
-              <Question />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/dashboard"
-          element={
-            <ProtectedRoute>
-              <Dashboard />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/mock/hr"
-          element={
-            <ProtectedRoute>
-              <MockHR />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/mock/company"
-          element={
-            <ProtectedRoute>
-              <MockCompany />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/resume"
-          element={
-            <ProtectedRoute>
-              <Resume />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/history"
-          element={
-            <ProtectedRoute>
-              <History />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/add-question"
-          element={
-            <ProtectedRoute>
-              <AddQuestion />
-            </ProtectedRoute>
-          }
-        />
+        <Route path="/question/:id" element={<Protected><Question /></Protected>} />
+        <Route path="/dashboard" element={<Protected><Dashboard /></Protected>} />
+        <Route path="/mock/hr" element={<Protected><MockHR /></Protected>} />
+        <Route path="/mock/company" element={<Protected><MockCompany /></Protected>} />
+        <Route path="/resume" element={<Protected><Resume /></Protected>} />
+        <Route path="/history" element={<Protected><History /></Protected>} />
+        <Route path="/add-question" element={<Protected><AddQuestion /></Protected>} />
       </Routes>
     </BrowserRouter>
   );

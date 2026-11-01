@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { getToken, logout } from "../auth";
+import { scoreColor } from "../components/ui";
 
 function parseFeedback(text) {
   try {
@@ -40,64 +41,89 @@ function History() {
   }, [navigate]);
 
   return (
-    <div className="max-w-2xl mx-auto p-6">
-      <Link to="/" className="text-blue-600 underline">
-        ← Back to questions
-      </Link>
-      <h1 className="text-2xl font-bold mt-4 mb-6">🕘 Your history</h1>
+    <div className="flex flex-col gap-5">
+      <div>
+        <h1 className="text-3xl font-extrabold" style={{ margin: 0 }}>
+          🕘 Your <span className="gradient-text">history</span>
+        </h1>
+        <p className="muted" style={{ margin: "4px 0 0" }}>
+          Click any answer to see your feedback again.
+        </p>
+      </div>
 
-      {error && <p className="text-red-600">{error}</p>}
+      {error && <div className="alert alert-error">{error}</div>}
+
+      {!items && !error && (
+        <div className="flex flex-col gap-3">
+          {[1, 2, 3].map((n) => (<div key={n} className="skeleton" style={{ height: 70 }} />))}
+        </div>
+      )}
 
       {items && items.length === 0 && (
-        <p className="text-gray-600">
-          You haven't answered any questions yet. Go practice one and come back!
-        </p>
+        <div className="card p-8 text-center">
+          <p className="text-4xl" style={{ margin: 0 }}>📭</p>
+          <p className="font-semibold" style={{ margin: "8px 0 2px" }}>Nothing here yet</p>
+          <p className="muted" style={{ margin: "0 0 14px" }}>Answer a question and it will show up here.</p>
+          <Link to="/" className="btn btn-primary">Start practicing</Link>
+        </div>
       )}
 
       {items &&
-        items.map((item) => {
+        items.map((item, i) => {
           const feedback = parseFeedback(item.feedback);
           const isOpen = openId === item.id;
           return (
-            <div key={item.id} className="border rounded-lg mb-3">
+            <div
+              key={item.id}
+              className="card fade-in"
+              style={{ animationDelay: `${Math.min(i, 10) * 30}ms`, overflow: "hidden" }}
+            >
               <button
                 onClick={() => setOpenId(isOpen ? null : item.id)}
-                className="w-full flex justify-between gap-3 p-3 text-left hover:bg-gray-50"
+                className="w-full flex items-center gap-4 p-4 text-left"
+                style={{ background: "transparent", border: "none", color: "inherit", font: "inherit", cursor: "pointer" }}
               >
-                <span>
-                  {item.title}
-                  {item.session_id && (
-                    <span className="text-xs text-gray-500"> (mock round)</span>
-                  )}
+                <span
+                  style={{
+                    width: 46,
+                    height: 46,
+                    borderRadius: "50%",
+                    display: "grid",
+                    placeItems: "center",
+                    fontWeight: 800,
+                    flexShrink: 0,
+                    color: "#fff",
+                    background: item.score == null ? "var(--muted)" : scoreColor(item.score),
+                  }}
+                >
+                  {item.score ?? "-"}
                 </span>
-                <span className="text-sm text-gray-600 whitespace-nowrap">
-                  {item.score ?? "-"} / 10 • {new Date(item.created_at).toLocaleString()}
+                <span style={{ flex: 1 }}>
+                  <span className="font-semibold">{item.title}</span>
+                  {item.session_id && <span className="badge badge-primary" style={{ marginLeft: 8 }}>mock round</span>}
+                  <br />
+                  <span className="muted text-sm">{new Date(item.created_at).toLocaleString()}</span>
                 </span>
+                <span className="muted">{isOpen ? "▲" : "▼"}</span>
               </button>
 
               {isOpen && (
-                <div className="p-3 border-t bg-gray-50">
-                  <h3 className="font-semibold">Your answer</h3>
-                  <p className="whitespace-pre-wrap">{item.answer}</p>
+                <div className="p-4 fade-in" style={{ borderTop: "1px solid var(--border)", background: "var(--surface-2)" }}>
+                  <p className="font-bold" style={{ margin: "0 0 6px" }}>Your answer</p>
+                  <p style={{ margin: 0, whiteSpace: "pre-wrap", lineHeight: 1.55 }}>{item.answer}</p>
 
                   {feedback ? (
-                    <>
-                      <h3 className="font-semibold mt-3">👍 What was good</h3>
-                      <p>{feedback.good}</p>
-                      <h3 className="font-semibold mt-3">⚠️ What to improve</h3>
-                      <p>{feedback.wrong}</p>
-                      <h3 className="font-semibold mt-3">✨ A better answer</h3>
-                      <p>{feedback.better_answer}</p>
-                    </>
+                    <div className="flex flex-col gap-3 mt-4">
+                      <div className="review-box review-good"><h4>👍 What was good</h4><p>{feedback.good}</p></div>
+                      <div className="review-box review-bad"><h4>⚠️ What to improve</h4><p>{feedback.wrong}</p></div>
+                      <div className="review-box review-better"><h4>✨ A better answer</h4><p>{feedback.better_answer}</p></div>
+                    </div>
                   ) : (
-                    <p className="mt-3 text-gray-600">No AI review was saved for this answer.</p>
+                    <p className="muted mt-3">No AI review was saved for this answer.</p>
                   )}
 
-                  <Link
-                    to={`/question/${item.question_id}`}
-                    className="text-blue-600 underline block mt-3"
-                  >
-                    Open this question
+                  <Link to={`/question/${item.question_id}`} className="btn btn-ghost btn-sm mt-4">
+                    Open this question →
                   </Link>
                 </div>
               )}

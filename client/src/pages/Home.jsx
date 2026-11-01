@@ -1,15 +1,22 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { getToken, getUser, logout } from "../auth";
+import { alertClass, difficultyBadge, topicIcon } from "../components/ui";
 
 function Home() {
   const navigate = useNavigate();
   const user = getUser();
+  const firstName = (user?.name || "there").split(" ")[0];
+
   const [questions, setQuestions] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [topic, setTopic] = useState("All");
   const [difficulty, setDifficulty] = useState("All");
+  const [search, setSearch] = useState("");
   const [bookmarks, setBookmarks] = useState([]);
   const [savedOnly, setSavedOnly] = useState(false);
+  const [popId, setPopId] = useState(null);
+  const [showGen, setShowGen] = useState(false);
   const [genTopic, setGenTopic] = useState("");
   const [genDifficulty, setGenDifficulty] = useState("Medium");
   const [generating, setGenerating] = useState(false);
@@ -27,8 +34,9 @@ function Home() {
         }
         return res.json();
       })
-      .then((data) => setQuestions(data))
-      .catch((err) => console.error(err));
+      .then((data) => setQuestions(Array.isArray(data) ? data : []))
+      .catch((err) => console.error(err))
+      .finally(() => setLoading(false));
   }, [navigate]);
 
   useEffect(() => {
@@ -36,14 +44,9 @@ function Home() {
       headers: { Authorization: `Bearer ${getToken()}` },
     })
       .then((res) => (res.ok ? res.json() : []))
-      .then((data) => setBookmarks(data))
+      .then((data) => setBookmarks(Array.isArray(data) ? data : []))
       .catch((err) => console.error(err));
   }, []);
-
-  function handleLogout() {
-    logout();
-    navigate("/login");
-  }
 
   async function toggleBookmark(questionId) {
     const isSaved = bookmarks.includes(questionId);
@@ -54,10 +57,12 @@ function Home() {
       });
       if (res.ok) {
         setBookmarks(
-          isSaved
-            ? bookmarks.filter((b) => b !== questionId)
-            : [...bookmarks, questionId]
+          isSaved ? bookmarks.filter((b) => b !== questionId) : [...bookmarks, questionId]
         );
+        if (!isSaved) {
+          setPopId(questionId);
+          setTimeout(() => setPopId(null), 450);
+        }
       }
     } catch (err) {
       console.error(err);
@@ -104,146 +109,219 @@ function Home() {
   }
 
   const topics = [...new Set(questions.map((q) => q.topic))].filter(Boolean);
-  const difficulties = [...new Set(questions.map((q) => q.difficulty))].filter(Boolean);
+  const difficulties = ["Easy", "Medium", "Hard"].filter((d) =>
+    questions.some((q) => q.difficulty === d)
+  );
 
+  const term = search.trim().toLowerCase();
   const visibleQuestions = questions.filter(
     (q) =>
       (topic === "All" || q.topic === topic) &&
       (difficulty === "All" || q.difficulty === difficulty) &&
-      (!savedOnly || bookmarks.includes(q.id))
+      (!savedOnly || bookmarks.includes(q.id)) &&
+      (!term ||
+        q.title.toLowerCase().includes(term) ||
+        (q.company || "").toLowerCase().includes(term))
   );
 
   return (
-    <div className="max-w-2xl mx-auto p-6">
-      <div className="flex flex-wrap justify-between items-center gap-3 mb-4">
-        <h1 className="text-2xl font-bold">AI Interview Prep</h1>
-        <div className="flex items-center gap-3">
-          <span>Hi, {user?.name}</span>
-          <button onClick={handleLogout} className="border rounded px-3 py-1 hover:bg-gray-100">
-            Log out
-          </button>
-        </div>
-      </div>
-
-      <div className="flex flex-wrap gap-2 mb-6">
-        <Link to="/dashboard" className="border rounded px-3 py-1 hover:bg-gray-100">
-          📊 Dashboard
-        </Link>
-        <Link to="/history" className="border rounded px-3 py-1 hover:bg-gray-100">
-          🕘 History
-        </Link>
-        <Link to="/mock/hr" className="border rounded px-3 py-1 hover:bg-gray-100">
-          🎤 HR Mock
-        </Link>
-        <Link to="/mock/company" className="border rounded px-3 py-1 hover:bg-gray-100">
-          🏢 Company Mock
-        </Link>
-        <Link to="/resume" className="border rounded px-3 py-1 hover:bg-gray-100">
-          📄 Resume Review
-        </Link>
-        <Link to="/add-question" className="border rounded px-3 py-1 hover:bg-gray-100">
-          ➕ Add Question
-        </Link>
-      </div>
-
-      <div className="border rounded-lg p-4 mb-4 bg-gray-50">
-        <p className="font-semibold mb-2">✨ Generate questions with AI</p>
-        <div className="flex flex-wrap gap-3">
-          <input
-            list="topic-options"
-            value={genTopic}
-            onChange={(e) => setGenTopic(e.target.value)}
-            placeholder="Topic, e.g. React"
-            className="border rounded px-3 py-2 flex-1 min-w-40"
-          />
-          <datalist id="topic-options">
-            {topics.map((t) => (
-              <option key={t} value={t} />
-            ))}
-          </datalist>
-          <select
-            value={genDifficulty}
-            onChange={(e) => setGenDifficulty(e.target.value)}
-            className="border rounded px-3 py-2"
-          >
-            <option value="Easy">Easy</option>
-            <option value="Medium">Medium</option>
-            <option value="Hard">Hard</option>
-          </select>
-          <button
-            onClick={handleGenerate}
-            disabled={generating || !genTopic.trim()}
-            className="bg-blue-600 text-white px-4 py-2 rounded disabled:opacity-50"
-          >
-            {generating ? "Generating..." : "Generate 3 questions"}
-          </button>
-        </div>
-        {genMessage && <p className="mt-2">{genMessage}</p>}
-        <p className="text-xs text-gray-500 mt-2">
-          AI-made questions can have mistakes, so double-check the answers.
+    <div className="flex flex-col gap-6">
+      <section className="hero p-6 sm:p-8">
+        <p style={{ opacity: 0.85, margin: 0 }}>Welcome back</p>
+        <h1 className="text-3xl sm:text-4xl font-extrabold" style={{ margin: "4px 0 8px" }}>
+          Hi, {firstName} 👋
+        </h1>
+        <p style={{ opacity: 0.9, maxWidth: 520, margin: 0 }}>
+          Practice interview questions, get instant AI feedback, and watch your score grow.
         </p>
-      </div>
+        <div className="flex flex-wrap gap-3 mt-5">
+          <Link to="/mock/hr" className="btn btn-light">🎤 Start HR mock</Link>
+          <Link to="/mock/company" className="btn btn-outline-light">🏢 Company mock</Link>
+          <Link to="/dashboard" className="btn btn-outline-light">📊 My progress</Link>
+        </div>
+        <div className="flex flex-wrap gap-2 mt-6">
+          <span className="badge" style={{ background: "rgba(255,255,255,.18)", color: "#fff" }}>
+            📚 {questions.length} questions
+          </span>
+          <span className="badge" style={{ background: "rgba(255,255,255,.18)", color: "#fff" }}>
+            🏷️ {topics.length} topics
+          </span>
+          <span className="badge" style={{ background: "rgba(255,255,255,.18)", color: "#fff" }}>
+            ⭐ {bookmarks.length} saved
+          </span>
+        </div>
+      </section>
 
-      <div className="flex flex-wrap gap-3 mb-4">
-        <select
-          value={topic}
-          onChange={(e) => setTopic(e.target.value)}
-          className="border rounded px-3 py-2"
-        >
-          <option value="All">All topics</option>
-          {topics.map((t) => (
-            <option key={t} value={t}>
-              {t}
-            </option>
-          ))}
-        </select>
-
-        <select
-          value={difficulty}
-          onChange={(e) => setDifficulty(e.target.value)}
-          className="border rounded px-3 py-2"
-        >
-          <option value="All">All difficulties</option>
-          {difficulties.map((d) => (
-            <option key={d} value={d}>
-              {d}
-            </option>
-          ))}
-        </select>
-
-        <label className="flex items-center gap-2">
-          <input
-            type="checkbox"
-            checked={savedOnly}
-            onChange={(e) => setSavedOnly(e.target.checked)}
-          />
-          Saved only
-        </label>
-      </div>
-
-      {visibleQuestions.map((q) => (
-        <div
-          key={q.id}
-          className="flex items-center border rounded-lg mb-3 shadow-sm hover:bg-gray-50"
-        >
-          <Link to={`/question/${q.id}`} className="block flex-1 p-4">
-            <h3 className="font-semibold">{q.title}</h3>
-            <p className="text-sm text-gray-600">
-              {q.topic} • {q.difficulty} • {q.company}
+      <section className="card p-5">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="font-bold" style={{ margin: 0 }}>✨ Generate questions with AI</p>
+            <p className="muted text-sm" style={{ margin: "2px 0 0" }}>
+              Type a topic and the AI writes 3 new questions with model answers.
             </p>
-          </Link>
-          <button
-            onClick={() => toggleBookmark(q.id)}
-            className="text-2xl px-4"
-            title={bookmarks.includes(q.id) ? "Remove bookmark" : "Bookmark this question"}
-          >
-            {bookmarks.includes(q.id) ? "⭐" : "☆"}
+          </div>
+          <button className="btn btn-ghost btn-sm" onClick={() => setShowGen(!showGen)}>
+            {showGen ? "Hide" : "Open"}
           </button>
         </div>
-      ))}
 
-      {questions.length > 0 && visibleQuestions.length === 0 && (
-        <p className="text-gray-600">No questions match these filters.</p>
+        {showGen && (
+          <div className="fade-in mt-4">
+            <div className="flex flex-wrap gap-3">
+              <input
+                list="topic-options"
+                value={genTopic}
+                onChange={(e) => setGenTopic(e.target.value)}
+                placeholder="Topic, e.g. React"
+                className="input flex-1"
+                style={{ minWidth: 180 }}
+              />
+              <datalist id="topic-options">
+                {topics.map((t) => (
+                  <option key={t} value={t} />
+                ))}
+              </datalist>
+              <div className="flex gap-2">
+                {["Easy", "Medium", "Hard"].map((d) => (
+                  <button
+                    key={d}
+                    className={genDifficulty === d ? "chip active" : "chip"}
+                    onClick={() => setGenDifficulty(d)}
+                  >
+                    {d}
+                  </button>
+                ))}
+              </div>
+              <button
+                onClick={handleGenerate}
+                disabled={generating || !genTopic.trim()}
+                className="btn btn-primary"
+              >
+                {generating ? (
+                  <>
+                    <span className="spinner" /> Generating...
+                  </>
+                ) : (
+                  "Generate 3 questions"
+                )}
+              </button>
+            </div>
+            {genMessage && <div className={`${alertClass(genMessage)} mt-3`}>{genMessage}</div>}
+            <p className="muted text-xs mt-2" style={{ marginBottom: 0 }}>
+              AI-made questions can have mistakes, so double-check the answers.
+            </p>
+          </div>
+        )}
+      </section>
+
+      <section className="flex flex-col gap-3">
+        <input
+          className="input"
+          placeholder="🔍 Search questions or companies..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
+        <div className="flex flex-wrap gap-2">
+          <button
+            className={topic === "All" ? "chip active" : "chip"}
+            onClick={() => setTopic("All")}
+          >
+            All topics
+          </button>
+          {topics.map((t) => (
+            <button
+              key={t}
+              className={topic === t ? "chip active" : "chip"}
+              onClick={() => setTopic(t)}
+            >
+              {topicIcon(t)} {t}
+            </button>
+          ))}
+        </div>
+        <div className="flex flex-wrap gap-2 items-center">
+          <button
+            className={difficulty === "All" ? "chip active" : "chip"}
+            onClick={() => setDifficulty("All")}
+          >
+            Any difficulty
+          </button>
+          {difficulties.map((d) => (
+            <button
+              key={d}
+              className={difficulty === d ? "chip active" : "chip"}
+              onClick={() => setDifficulty(d)}
+            >
+              {d}
+            </button>
+          ))}
+          <button
+            className={savedOnly ? "chip active" : "chip"}
+            onClick={() => setSavedOnly(!savedOnly)}
+          >
+            ⭐ Saved only
+          </button>
+          <span className="muted text-sm" style={{ marginLeft: "auto" }}>
+            Showing {visibleQuestions.length} of {questions.length}
+          </span>
+        </div>
+      </section>
+
+      {loading && (
+        <div className="grid gap-4 sm:grid-cols-2">
+          {[1, 2, 3, 4].map((n) => (
+            <div key={n} className="skeleton" style={{ height: 120 }} />
+          ))}
+        </div>
+      )}
+
+      {!loading && (
+        <div className="grid gap-4 sm:grid-cols-2">
+          {visibleQuestions.map((q, i) => (
+            <div
+              key={q.id}
+              className="card card-hover fade-in relative"
+              style={{ animationDelay: `${Math.min(i, 12) * 35}ms` }}
+            >
+              <Link
+                to={`/question/${q.id}`}
+                className="block p-5"
+                style={{ color: "inherit", textDecoration: "none", paddingRight: 60 }}
+              >
+                <div className="flex flex-wrap items-center gap-2 mb-3">
+                  <span className="badge badge-primary">
+                    {topicIcon(q.topic)} {q.topic}
+                  </span>
+                  <span className={difficultyBadge(q.difficulty)}>{q.difficulty}</span>
+                </div>
+                <h3 className="font-semibold" style={{ margin: 0, lineHeight: 1.4 }}>
+                  {q.title}
+                </h3>
+                {q.company && (
+                  <p className="muted text-sm" style={{ margin: "10px 0 0" }}>
+                    🏢 {q.company}
+                  </p>
+                )}
+              </Link>
+              <button
+                onClick={() => toggleBookmark(q.id)}
+                className={popId === q.id ? "star-btn star-pop" : "star-btn"}
+                title={bookmarks.includes(q.id) ? "Remove bookmark" : "Bookmark this question"}
+              >
+                {bookmarks.includes(q.id) ? "⭐" : "☆"}
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {!loading && visibleQuestions.length === 0 && (
+        <div className="card p-8 text-center">
+          <p className="text-4xl" style={{ margin: 0 }}>🔎</p>
+          <p className="font-semibold" style={{ margin: "8px 0 2px" }}>No questions found</p>
+          <p className="muted" style={{ margin: 0 }}>
+            Try a different filter, or generate new questions with AI.
+          </p>
+        </div>
       )}
     </div>
   );
