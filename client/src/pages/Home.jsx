@@ -44,6 +44,7 @@ function Home() {
     logout();
     navigate("/login");
   }
+
   async function toggleBookmark(questionId) {
     const isSaved = bookmarks.includes(questionId);
     try {
@@ -114,21 +115,37 @@ function Home() {
 
   return (
     <div className="max-w-2xl mx-auto p-6">
-      <div className="flex justify-between items-center mb-6">
+      <div className="flex flex-wrap justify-between items-center gap-3 mb-4">
         <h1 className="text-2xl font-bold">AI Interview Prep</h1>
         <div className="flex items-center gap-3">
-          <Link to="/mock/hr" className="border rounded px-3 py-1 hover:bg-gray-100">
-            🎤 HR Mock
-          </Link>
-          <Link to="/dashboard" className="border rounded px-3 py-1 hover:bg-gray-100">
-            📊 Dashboard
-          </Link>
           <span>Hi, {user?.name}</span>
           <button onClick={handleLogout} className="border rounded px-3 py-1 hover:bg-gray-100">
             Log out
           </button>
         </div>
       </div>
+
+      <div className="flex flex-wrap gap-2 mb-6">
+        <Link to="/dashboard" className="border rounded px-3 py-1 hover:bg-gray-100">
+          📊 Dashboard
+        </Link>
+        <Link to="/history" className="border rounded px-3 py-1 hover:bg-gray-100">
+          🕘 History
+        </Link>
+        <Link to="/mock/hr" className="border rounded px-3 py-1 hover:bg-gray-100">
+          🎤 HR Mock
+        </Link>
+        <Link to="/mock/company" className="border rounded px-3 py-1 hover:bg-gray-100">
+          🏢 Company Mock
+        </Link>
+        <Link to="/resume" className="border rounded px-3 py-1 hover:bg-gray-100">
+          📄 Resume Review
+        </Link>
+        <Link to="/add-question" className="border rounded px-3 py-1 hover:bg-gray-100">
+          ➕ Add Question
+        </Link>
+      </div>
+
       <div className="border rounded-lg p-4 mb-4 bg-gray-50">
         <p className="font-semibold mb-2">✨ Generate questions with AI</p>
         <div className="flex flex-wrap gap-3">
@@ -166,16 +183,18 @@ function Home() {
           AI-made questions can have mistakes, so double-check the answers.
         </p>
       </div>
-      <div className="flex gap-3 mb-4">
-        <select
 
+      <div className="flex flex-wrap gap-3 mb-4">
+        <select
           value={topic}
           onChange={(e) => setTopic(e.target.value)}
           className="border rounded px-3 py-2"
         >
           <option value="All">All topics</option>
           {topics.map((t) => (
-            <option key={t} value={t}>{t}</option>
+            <option key={t} value={t}>
+              {t}
+            </option>
           ))}
         </select>
 
@@ -186,9 +205,12 @@ function Home() {
         >
           <option value="All">All difficulties</option>
           {difficulties.map((d) => (
-            <option key={d} value={d}>{d}</option>
+            <option key={d} value={d}>
+              {d}
+            </option>
           ))}
         </select>
+
         <label className="flex items-center gap-2">
           <input
             type="checkbox"
@@ -219,6 +241,10 @@ function Home() {
           </button>
         </div>
       ))}
+
+      {questions.length > 0 && visibleQuestions.length === 0 && (
+        <p className="text-gray-600">No questions match these filters.</p>
+      )}
     </div>
   );
 }
