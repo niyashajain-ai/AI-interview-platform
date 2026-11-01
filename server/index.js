@@ -55,7 +55,7 @@ app.get("/api/questions/:id", requireAuth, async (req, res) => {
 });
 
 app.post("/api/attempts", requireAuth, async (req, res) => {
-  const { questionId, answer } = req.body;
+  const { questionId, answer, sessionId } = req.body;
 
   if (!questionId || !answer || !answer.trim()) {
     return res.status(400).json({ error: "Please write an answer first" });
@@ -70,9 +70,22 @@ app.post("/api/attempts", requireAuth, async (req, res) => {
       return res.status(404).json({ error: "Question not found" });
     }
 
+    let validSessionId = null;
+    if (sessionId) {
+      const s = await pool.query(
+        "SELECT id FROM mock_sessions WHERE id = $1 AND user_id = $2",
+        [sessionId, req.userId]
+      );
+      if (s.rows.length === 0) {
+        return res.status(400).json({ error: "Mock session not found" });
+      }
+      validSessionId = s.rows[0].id;
+    }
+
     const saved = await pool.query(
-      "INSERT INTO attempts (user_id, question_id, answer) VALUES ($1, $2, $3) RETURNING id",
-      [req.userId, questionId, answer.trim()]
+      "INSERT INTO attempts (user_id, question_id, answer, session_id) VALUES ($1, $2, $3, $4) RETURNING id",
+      [req.userId, questionId, answer.trim(), validSessionId]
+
     );
     const attemptId = saved.rows[0].id;
 
@@ -244,6 +257,66 @@ app.post("/api/questions/generate", requireAuth, async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Could not save the questions" });
+  }
+});
+
+app.post("/api/mock/start", requireAuth, async (req, res) => {
+  try {
+    const questions = await pool.query(
+      "SELECT id, title FROM questions WHERE LOWER(topic) = 'hr' ORDER BY RANDOM() LIMIT 5"
+    );
+    if (questions.rows.length === 0) {
+      return res.status(404).json({ error: "No HR questions yet, please add some first" });
+    }
+
+    const session = await pool.query(
+      "INSERT INTO mock_sessions (user_id, round_type) VALUES ($1, 'HR') RETURNING id",
+      [req.userId]
+    );
+
+    res.status(201).json({
+      sessionId: session.rows[0].id,
+      questions: questions.rows,
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Could not start the mock round" });
+  }
+});
+
+app.post("/api/mock/:sessionId/finish", requireAuth, async (req, res) => {
+  try {
+    const session = await pool.query(
+      "SELECT id FROM mock_sessions WHERE id = $1 AND user_id = $2",
+      [req.params.sessionId, req.userId]
+    );
+    if (session.rows.length === 0) {
+      return res.status(404).json({ error: "Mock session not found" });
+    }
+
+    const results = await pool.query(
+      `SELECT q.title, a.score
+       FROM attempts a JOIN questions q ON q.id = a.question_id
+       WHERE a.session_id = $1 AND a.user_id = $2
+       ORDER BY a.id`,
+      [req.params.sessionId, req.userId]
+    );
+
+    const avg = await pool.query(
+      "SELECT ROUND(AVG(score), 1) AS overall FROM attempts WHERE session_id = $1 AND user_id = $2",
+      [req.params.sessionId, req.userId]
+    );
+    const overall = avg.rows[0].overall;
+
+    await pool.query("UPDATE mock_sessions SET overall_score = $1 WHERE id = $2", [
+      overall,
+      req.params.sessionId,
+    ]);
+
+    res.json({ overall_score: overall, results: results.rows });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Could not finish the mock round" });
   }
 });
 

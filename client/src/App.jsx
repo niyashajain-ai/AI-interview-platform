@@ -5,6 +5,7 @@ import Signup from "./pages/Signup";
 import Question from "./pages/Question";
 import { getToken } from "./auth";
 import Dashboard from "./pages/Dashboard";
+import MockHR from "./pages/MockHR";
 
 function ProtectedRoute({ children }) {
   return getToken() ? children : <Navigate to="/login" />;
@@ -37,6 +38,14 @@ function App() {
           element={
             <ProtectedRoute>
               <Dashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/mock/hr"
+          element={
+            <ProtectedRoute>
+              <MockHR />
             </ProtectedRoute>
           }
         />
