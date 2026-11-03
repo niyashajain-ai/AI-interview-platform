@@ -2,9 +2,10 @@ import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { getToken, logout } from "../auth";
 import ScoreRing from "../components/ScoreRing";
+import Confetti from "../components/Confetti";
 import { alertClass, scoreColor, verdict } from "../components/ui";
 
-const API = "http://localhost:5000";
+const API = "";
 const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 
 function MockHR() {
@@ -320,6 +321,7 @@ function MockHR() {
               <p className="muted" style={{ margin: "4px 0 0" }}>Your overall HR mock score</p>
             </div>
           </div>
+          {Number(summary.overall_score) >= 8 && <Confetti />}
           <p className="font-bold" style={{ margin: "0 0 8px" }}>Your answers</p>
           {summary.results.map((r, i) => (
             <div key={i} className="flex justify-between gap-3 p-3 mb-2" style={{ borderRadius: 12, background: "var(--surface-2)" }}>

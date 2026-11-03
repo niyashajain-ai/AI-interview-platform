@@ -68,7 +68,7 @@ function Resume() {
     setReview(null);
     setWorking(true);
     try {
-      const res = await fetch("http://localhost:5000/api/resume", {
+      const res = await fetch("/api/resume", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

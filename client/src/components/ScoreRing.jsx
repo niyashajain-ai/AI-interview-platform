@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { scoreColor } from "./ui";
 
-function ScoreRing({ value = 0, max = 10, size = 120, label = "/ 10" }) {
+function ScoreRing({ value = 0, max = 10, size = 120, label = "/ 10" , color}) {
   const [shown, setShown] = useState(0);
 
   useEffect(() => {
@@ -29,7 +29,7 @@ function ScoreRing({ value = 0, max = 10, size = 120, label = "/ 10" }) {
           cy={size / 2}
           r={radius}
           fill="none"
-          stroke={scoreColor(value)}
+          stroke={color || scoreColor(value)}
           strokeWidth="10"
           strokeLinecap="round"
           strokeDasharray={circumference}

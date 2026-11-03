@@ -512,5 +512,17 @@ app.post("/api/resume", requireAuth, async (req, res) => {
 
   res.json({ review });
 });
+
+const path = require("path");
+const fs = require("fs");
+
+const clientDist = path.join(__dirname, "..", "client", "dist");
+if (fs.existsSync(clientDist)) {
+  app.use(express.static(clientDist));
+  app.get(/^\/(?!api\/).*/, (req, res) => {
+    res.sendFile(path.join(clientDist, "index.html"));
+  });
+}
+
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));

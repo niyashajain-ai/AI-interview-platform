@@ -6,6 +6,7 @@ import Signup from "./pages/Signup";
 import Question from "./pages/Question";
 import { getToken } from "./auth";
 import Dashboard from "./pages/Dashboard";
+import MockHub from "./pages/MockHub";
 import MockHR from "./pages/MockHR";
 import MockCompany from "./pages/MockCompany";
 import Resume from "./pages/Resume";
@@ -26,6 +27,7 @@ function App() {
         <Route path="/signup" element={<Signup />} />
         <Route path="/question/:id" element={<Protected><Question /></Protected>} />
         <Route path="/dashboard" element={<Protected><Dashboard /></Protected>} />
+        <Route path="/mock" element={<Protected><MockHub /></Protected>} />
         <Route path="/mock/hr" element={<Protected><MockHR /></Protected>} />
         <Route path="/mock/company" element={<Protected><MockCompany /></Protected>} />
         <Route path="/resume" element={<Protected><Resume /></Protected>} />

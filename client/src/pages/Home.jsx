@@ -1,12 +1,28 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { getToken, getUser, logout } from "../auth";
+import Modal from "../components/Modal";
+import ScoreRing from "../components/ScoreRing";
 import { alertClass, difficultyBadge, topicIcon } from "../components/ui";
+import {
+  DAILY_GOAL,
+  computeXP,
+  getStreak,
+  greeting,
+  levelInfo,
+  levelTitle,
+  motivation,
+  todayCount,
+  useStats,
+} from "../components/gamify";
+
+const PAGE_SIZE = 10;
 
 function Home() {
   const navigate = useNavigate();
   const user = getUser();
   const firstName = (user?.name || "there").split(" ")[0];
+  const { stats } = useStats();
 
   const [questions, setQuestions] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -16,6 +32,7 @@ function Home() {
   const [bookmarks, setBookmarks] = useState([]);
   const [savedOnly, setSavedOnly] = useState(false);
   const [popId, setPopId] = useState(null);
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const [showGen, setShowGen] = useState(false);
   const [genTopic, setGenTopic] = useState("");
   const [genDifficulty, setGenDifficulty] = useState("Medium");
@@ -23,7 +40,7 @@ function Home() {
   const [genMessage, setGenMessage] = useState("");
 
   useEffect(() => {
-    fetch("http://localhost:5000/api/questions", {
+    fetch("/api/questions", {
       headers: { Authorization: `Bearer ${getToken()}` },
     })
       .then((res) => {
@@ -40,7 +57,7 @@ function Home() {
   }, [navigate]);
 
   useEffect(() => {
-    fetch("http://localhost:5000/api/bookmarks", {
+    fetch("/api/bookmarks", {
       headers: { Authorization: `Bearer ${getToken()}` },
     })
       .then((res) => (res.ok ? res.json() : []))
@@ -48,10 +65,14 @@ function Home() {
       .catch((err) => console.error(err));
   }, []);
 
+  useEffect(() => {
+    setVisibleCount(PAGE_SIZE);
+  }, [topic, difficulty, search, savedOnly]);
+
   async function toggleBookmark(questionId) {
     const isSaved = bookmarks.includes(questionId);
     try {
-      const res = await fetch(`http://localhost:5000/api/bookmarks/${questionId}`, {
+      const res = await fetch(`/api/bookmarks/${questionId}`, {
         method: isSaved ? "DELETE" : "POST",
         headers: { Authorization: `Bearer ${getToken()}` },
       });
@@ -73,7 +94,7 @@ function Home() {
     setGenMessage("");
     setGenerating(true);
     try {
-      const res = await fetch("http://localhost:5000/api/questions/generate", {
+      const res = await fetch("/api/questions/generate", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -94,7 +115,7 @@ function Home() {
         return;
       }
 
-      const listRes = await fetch("http://localhost:5000/api/questions", {
+      const listRes = await fetch("/api/questions", {
         headers: { Authorization: `Bearer ${getToken()}` },
       });
       if (listRes.ok) setQuestions(await listRes.json());
@@ -108,13 +129,22 @@ function Home() {
     }
   }
 
-  const topics = [...new Set(questions.map((q) => q.topic))].filter(Boolean);
-  const difficulties = ["Easy", "Medium", "Hard"].filter((d) =>
-    questions.some((q) => q.difficulty === d)
-  );
+  function clearFilters() {
+    setTopic("All");
+    setDifficulty("All");
+    setSearch("");
+    setSavedOnly(false);
+  }
 
+  const times = stats ? stats.attemptTimes || [] : [];
+  const streak = getStreak(times);
+  const today = todayCount(times);
+  const xp = stats ? computeXP(stats) : 0;
+  const lvl = levelInfo(xp);
+
+  const topics = [...new Set(questions.map((q) => q.topic))].filter(Boolean);
   const term = search.trim().toLowerCase();
-  const visibleQuestions = questions.filter(
+  const filtered = questions.filter(
     (q) =>
       (topic === "All" || q.topic === topic) &&
       (difficulty === "All" || q.difficulty === difficulty) &&
@@ -123,205 +153,254 @@ function Home() {
         q.title.toLowerCase().includes(term) ||
         (q.company || "").toLowerCase().includes(term))
   );
+  const shown = filtered.slice(0, visibleCount);
+  const filtersActive = topic !== "All" || difficulty !== "All" || savedOnly || term;
+
+  const qotd =
+    questions.length > 0
+      ? questions[Math.floor(Date.now() / 86400000) % questions.length]
+      : null;
 
   return (
-    <div className="flex flex-col gap-6">
-      <section className="hero p-6 sm:p-8">
-        <p style={{ opacity: 0.85, margin: 0 }}>Welcome back</p>
-        <h1 className="text-3xl sm:text-4xl font-extrabold" style={{ margin: "4px 0 8px" }}>
-          Hi, {firstName} 👋
+    <div className="flex flex-col gap-8">
+      <section>
+        <p className="muted" style={{ margin: 0 }}>{greeting()}</p>
+        <h1 className="text-3xl font-extrabold" style={{ margin: "2px 0 6px" }}>
+          Hi, {firstName} <span className="wave">👋</span>
         </h1>
-        <p style={{ opacity: 0.9, maxWidth: 520, margin: 0 }}>
-          Practice interview questions, get instant AI feedback, and watch your score grow.
-        </p>
-        <div className="flex flex-wrap gap-3 mt-5">
-          <Link to="/mock/hr" className="btn btn-light">🎤 Start HR mock</Link>
-          <Link to="/mock/company" className="btn btn-outline-light">🏢 Company mock</Link>
-          <Link to="/dashboard" className="btn btn-outline-light">📊 My progress</Link>
-        </div>
-        <div className="flex flex-wrap gap-2 mt-6">
-          <span className="badge" style={{ background: "rgba(255,255,255,.18)", color: "#fff" }}>
-            📚 {questions.length} questions
-          </span>
-          <span className="badge" style={{ background: "rgba(255,255,255,.18)", color: "#fff" }}>
-            🏷️ {topics.length} topics
-          </span>
-          <span className="badge" style={{ background: "rgba(255,255,255,.18)", color: "#fff" }}>
-            ⭐ {bookmarks.length} saved
-          </span>
-        </div>
+        <p className="muted" style={{ margin: 0 }}>{motivation(streak, today)}</p>
       </section>
 
-      <section className="card p-5">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <p className="font-bold" style={{ margin: 0 }}>✨ Generate questions with AI</p>
-            <p className="muted text-sm" style={{ margin: "2px 0 0" }}>
-              Type a topic and the AI writes 3 new questions with model answers.
-            </p>
+      <section className="grid gap-4 sm:grid-cols-3">
+        {!stats ? (
+          [1, 2, 3].map((n) => <div key={n} className="skeleton" style={{ height: 104 }} />)
+        ) : (
+          <>
+            <div className="card tile fade-in">
+              <ScoreRing
+                value={Math.min(today, DAILY_GOAL)}
+                max={DAILY_GOAL}
+                size={72}
+                label={`/ ${DAILY_GOAL}`}
+                color={today >= DAILY_GOAL ? "var(--success)" : "var(--primary)"}
+              />
+              <div>
+                <p className="font-bold" style={{ margin: 0 }}>Daily goal</p>
+                <p className="muted text-sm" style={{ margin: "2px 0 0" }}>
+                  {today >= DAILY_GOAL ? "Done for today 🎉" : `${DAILY_GOAL - today} more to go`}
+                </p>
+              </div>
+            </div>
+
+            <div className="card tile fade-in" style={{ animationDelay: "60ms" }}>
+              <span className="text-4xl floaty">🔥</span>
+              <div>
+                <p className="tile-value" style={{ margin: 0 }}>{streak}</p>
+                <p className="muted text-sm" style={{ margin: 0 }}>day streak</p>
+              </div>
+            </div>
+
+            <div className="card tile fade-in" style={{ animationDelay: "120ms" }}>
+              <span className="level-orb" style={{ width: 52, height: 52, fontSize: "1.1rem" }}>
+                {lvl.level}
+              </span>
+              <div style={{ flex: 1 }}>
+                <p className="font-bold" style={{ margin: 0 }}>
+                  Level {lvl.level} · {levelTitle(lvl.level)}
+                </p>
+                <div className="progress mt-2">
+                  <div style={{ width: `${lvl.percent}%` }} />
+                </div>
+                <p className="muted text-xs" style={{ margin: "4px 0 0" }}>
+                  {lvl.into} / {lvl.per} XP
+                </p>
+              </div>
+            </div>
+          </>
+        )}
+      </section>
+
+      {qotd && (
+        <section className="hero p-6">
+          <p className="text-sm font-semibold" style={{ opacity: 0.85, margin: 0 }}>
+            ⭐ QUESTION OF THE DAY
+          </p>
+          <h2
+            className="text-xl font-bold"
+            style={{ margin: "8px 0 16px", lineHeight: 1.4, maxWidth: 620 }}
+          >
+            {qotd.title}
+          </h2>
+          <div className="flex flex-wrap items-center gap-3">
+            <Link to={`/question/${qotd.id}`} className="btn btn-light">
+              Answer it →
+            </Link>
+            <span className="badge" style={{ background: "rgba(255,255,255,.2)", color: "#fff" }}>
+              {topicIcon(qotd.topic)} {qotd.topic} • {qotd.difficulty}
+            </span>
           </div>
-          <button className="btn btn-ghost btn-sm" onClick={() => setShowGen(!showGen)}>
-            {showGen ? "Hide" : "Open"}
-          </button>
+        </section>
+      )}
+
+      <section className="flex flex-col gap-4">
+        <div className="section-head">
+          <h2 className="text-xl font-bold" style={{ margin: 0 }}>Practice</h2>
+          <div className="flex gap-2">
+            <button className="btn btn-ghost btn-sm" onClick={() => setShowGen(true)}>
+              ✨ Generate with AI
+            </button>
+            <Link to="/add-question" className="btn btn-ghost btn-sm">
+              ➕ Add
+            </Link>
+          </div>
         </div>
 
-        {showGen && (
-          <div className="fade-in mt-4">
-            <div className="flex flex-wrap gap-3">
-              <input
-                list="topic-options"
-                value={genTopic}
-                onChange={(e) => setGenTopic(e.target.value)}
-                placeholder="Topic, e.g. React"
-                className="input flex-1"
-                style={{ minWidth: 180 }}
-              />
-              <datalist id="topic-options">
-                {topics.map((t) => (
-                  <option key={t} value={t} />
-                ))}
-              </datalist>
-              <div className="flex gap-2">
-                {["Easy", "Medium", "Hard"].map((d) => (
-                  <button
-                    key={d}
-                    className={genDifficulty === d ? "chip active" : "chip"}
-                    onClick={() => setGenDifficulty(d)}
-                  >
-                    {d}
-                  </button>
-                ))}
-              </div>
-              <button
-                onClick={handleGenerate}
-                disabled={generating || !genTopic.trim()}
-                className="btn btn-primary"
+        <div className="toolbar">
+          <input
+            className="input grow"
+            placeholder="🔍 Search questions or companies..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+          <select className="input" value={topic} onChange={(e) => setTopic(e.target.value)}>
+            <option value="All">All topics</option>
+            {topics.map((t) => (
+              <option key={t} value={t}>{t}</option>
+            ))}
+          </select>
+          <select
+            className="input"
+            value={difficulty}
+            onChange={(e) => setDifficulty(e.target.value)}
+          >
+            <option value="All">Any difficulty</option>
+            <option value="Easy">Easy</option>
+            <option value="Medium">Medium</option>
+            <option value="Hard">Hard</option>
+          </select>
+          <button className={savedOnly ? "chip active" : "chip"} onClick={() => setSavedOnly(!savedOnly)}>
+            ⭐ Saved
+          </button>
+          {filtersActive && (
+            <button className="btn btn-ghost btn-sm" onClick={clearFilters}>
+              Clear
+            </button>
+          )}
+        </div>
+
+        {!loading && (
+          <p className="muted text-sm" style={{ margin: 0 }}>
+            {filtered.length} {filtered.length === 1 ? "question" : "questions"}
+          </p>
+        )}
+
+        {loading && (
+          <div className="flex flex-col gap-3">
+            {[1, 2, 3, 4].map((n) => (
+              <div key={n} className="skeleton" style={{ height: 76 }} />
+            ))}
+          </div>
+        )}
+
+        {!loading && (
+          <div className="flex flex-col gap-3">
+            {shown.map((q, i) => (
+              <div
+                key={q.id}
+                className="row-card fade-in"
+                style={{ animationDelay: `${Math.min(i, 10) * 30}ms` }}
               >
-                {generating ? (
-                  <>
-                    <span className="spinner" /> Generating...
-                  </>
-                ) : (
-                  "Generate 3 questions"
-                )}
-              </button>
-            </div>
-            {genMessage && <div className={`${alertClass(genMessage)} mt-3`}>{genMessage}</div>}
-            <p className="muted text-xs mt-2" style={{ marginBottom: 0 }}>
-              AI-made questions can have mistakes, so double-check the answers.
+                <Link to={`/question/${q.id}`} className="row-main">
+                  <span className="row-icon">{topicIcon(q.topic)}</span>
+                  <span className="row-text">
+                    <span className="row-title">{q.title}</span>
+                    <span className="row-meta">
+                      <span className={difficultyBadge(q.difficulty)}>{q.difficulty}</span>
+                      <span>{q.topic}</span>
+                      {q.company && <span>• {q.company}</span>}
+                    </span>
+                  </span>
+                </Link>
+                <button
+                  onClick={() => toggleBookmark(q.id)}
+                  className={popId === q.id ? "icon-btn star-pop" : "icon-btn"}
+                  title={bookmarks.includes(q.id) ? "Remove bookmark" : "Bookmark this question"}
+                >
+                  {bookmarks.includes(q.id) ? "⭐" : "☆"}
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {!loading && filtered.length > shown.length && (
+          <button
+            className="btn btn-ghost"
+            style={{ alignSelf: "center" }}
+            onClick={() => setVisibleCount(visibleCount + PAGE_SIZE)}
+          >
+            Show more ({filtered.length - shown.length} left)
+          </button>
+        )}
+
+        {!loading && filtered.length === 0 && (
+          <div className="card p-8 text-center">
+            <p className="text-4xl" style={{ margin: 0 }}>🔎</p>
+            <p className="font-semibold" style={{ margin: "8px 0 2px" }}>No questions found</p>
+            <p className="muted" style={{ margin: 0 }}>
+              Try a different filter, or generate new questions with AI.
             </p>
           </div>
         )}
       </section>
 
-      <section className="flex flex-col gap-3">
-        <input
-          className="input"
-          placeholder="🔍 Search questions or companies..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
-        <div className="flex flex-wrap gap-2">
-          <button
-            className={topic === "All" ? "chip active" : "chip"}
-            onClick={() => setTopic("All")}
-          >
-            All topics
-          </button>
-          {topics.map((t) => (
-            <button
-              key={t}
-              className={topic === t ? "chip active" : "chip"}
-              onClick={() => setTopic(t)}
-            >
-              {topicIcon(t)} {t}
-            </button>
-          ))}
-        </div>
-        <div className="flex flex-wrap gap-2 items-center">
-          <button
-            className={difficulty === "All" ? "chip active" : "chip"}
-            onClick={() => setDifficulty("All")}
-          >
-            Any difficulty
-          </button>
-          {difficulties.map((d) => (
-            <button
-              key={d}
-              className={difficulty === d ? "chip active" : "chip"}
-              onClick={() => setDifficulty(d)}
-            >
-              {d}
-            </button>
-          ))}
-          <button
-            className={savedOnly ? "chip active" : "chip"}
-            onClick={() => setSavedOnly(!savedOnly)}
-          >
-            ⭐ Saved only
-          </button>
-          <span className="muted text-sm" style={{ marginLeft: "auto" }}>
-            Showing {visibleQuestions.length} of {questions.length}
-          </span>
-        </div>
-      </section>
-
-      {loading && (
-        <div className="grid gap-4 sm:grid-cols-2">
-          {[1, 2, 3, 4].map((n) => (
-            <div key={n} className="skeleton" style={{ height: 120 }} />
-          ))}
-        </div>
-      )}
-
-      {!loading && (
-        <div className="grid gap-4 sm:grid-cols-2">
-          {visibleQuestions.map((q, i) => (
-            <div
-              key={q.id}
-              className="card card-hover fade-in relative"
-              style={{ animationDelay: `${Math.min(i, 12) * 35}ms` }}
-            >
-              <Link
-                to={`/question/${q.id}`}
-                className="block p-5"
-                style={{ color: "inherit", textDecoration: "none", paddingRight: 60 }}
-              >
-                <div className="flex flex-wrap items-center gap-2 mb-3">
-                  <span className="badge badge-primary">
-                    {topicIcon(q.topic)} {q.topic}
-                  </span>
-                  <span className={difficultyBadge(q.difficulty)}>{q.difficulty}</span>
-                </div>
-                <h3 className="font-semibold" style={{ margin: 0, lineHeight: 1.4 }}>
-                  {q.title}
-                </h3>
-                {q.company && (
-                  <p className="muted text-sm" style={{ margin: "10px 0 0" }}>
-                    🏢 {q.company}
-                  </p>
-                )}
-              </Link>
-              <button
-                onClick={() => toggleBookmark(q.id)}
-                className={popId === q.id ? "star-btn star-pop" : "star-btn"}
-                title={bookmarks.includes(q.id) ? "Remove bookmark" : "Bookmark this question"}
-              >
-                {bookmarks.includes(q.id) ? "⭐" : "☆"}
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {!loading && visibleQuestions.length === 0 && (
-        <div className="card p-8 text-center">
-          <p className="text-4xl" style={{ margin: 0 }}>🔎</p>
-          <p className="font-semibold" style={{ margin: "8px 0 2px" }}>No questions found</p>
-          <p className="muted" style={{ margin: 0 }}>
-            Try a different filter, or generate new questions with AI.
+      {showGen && (
+        <Modal title="✨ Generate questions with AI" onClose={() => setShowGen(false)}>
+          <p className="muted text-sm" style={{ marginTop: 0 }}>
+            Type a topic and the AI writes 3 new questions with model answers.
           </p>
-        </div>
+          <input
+            list="topic-options"
+            value={genTopic}
+            onChange={(e) => setGenTopic(e.target.value)}
+            placeholder="Topic, e.g. React"
+            className="input"
+          />
+          <datalist id="topic-options">
+            {topics.map((t) => (
+              <option key={t} value={t} />
+            ))}
+          </datalist>
+          <div className="flex gap-2 mt-3">
+            {["Easy", "Medium", "Hard"].map((d) => (
+              <button
+                key={d}
+                className={genDifficulty === d ? "chip active" : "chip"}
+                onClick={() => setGenDifficulty(d)}
+              >
+                {d}
+              </button>
+            ))}
+          </div>
+          <button
+            onClick={handleGenerate}
+            disabled={generating || !genTopic.trim()}
+            className="btn btn-primary mt-4"
+            style={{ width: "100%" }}
+          >
+            {generating ? (
+              <>
+                <span className="spinner" /> Generating...
+              </>
+            ) : (
+              "Generate 3 questions"
+            )}
+          </button>
+          {genMessage && <div className={`${alertClass(genMessage)} mt-3`}>{genMessage}</div>}
+          <p className="muted text-xs mt-3" style={{ marginBottom: 0 }}>
+            AI-made questions can have mistakes, so double-check the answers.
+          </p>
+        </Modal>
       )}
     </div>
   );

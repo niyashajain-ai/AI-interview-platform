@@ -18,7 +18,7 @@ function History() {
   const [openId, setOpenId] = useState(null);
 
   useEffect(() => {
-    fetch("http://localhost:5000/api/history", {
+    fetch("/api/history", {
       headers: { Authorization: `Bearer ${getToken()}` },
     })
       .then(async (res) => {

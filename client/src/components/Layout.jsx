@@ -1,15 +1,13 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
 import { getUser, logout } from "../auth";
 
 const LINKS = [
   { to: "/", label: "Practice", icon: "🏠", end: true },
-  { to: "/dashboard", label: "Dashboard", icon: "📊" },
+  { to: "/mock", label: "Mock", icon: "🎯" },
+  { to: "/dashboard", label: "Progress", icon: "📊" },
   { to: "/history", label: "History", icon: "🕘" },
-  { to: "/mock/hr", label: "HR Mock", icon: "🎤" },
-  { to: "/mock/company", label: "Company Mock", icon: "🏢" },
   { to: "/resume", label: "Resume", icon: "📄" },
-  { to: "/add-question", label: "Add Question", icon: "➕" },
 ];
 
 function getInitialTheme() {
@@ -29,6 +27,8 @@ function Layout({ children }) {
   const location = useLocation();
   const user = getUser();
   const [theme, setTheme] = useState(getInitialTheme);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef(null);
 
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", theme);
@@ -38,6 +38,18 @@ function Layout({ children }) {
       // ignore
     }
   }, [theme]);
+
+  useEffect(() => {
+    function onClick(e) {
+      if (menuRef.current && !menuRef.current.contains(e.target)) setMenuOpen(false);
+    }
+    document.addEventListener("mousedown", onClick);
+    return () => document.removeEventListener("mousedown", onClick);
+  }, []);
+
+  useEffect(() => {
+    setMenuOpen(false);
+  }, [location.pathname]);
 
   function handleLogout() {
     logout();
@@ -49,10 +61,7 @@ function Layout({ children }) {
   return (
     <>
       <header className="topbar">
-        <div
-          className="flex items-center justify-between gap-3 px-4 py-3 mx-auto"
-          style={{ maxWidth: 1080 }}
-        >
+        <div className="topbar-inner">
           <Link
             to="/"
             className="flex items-center gap-2"
@@ -62,6 +71,15 @@ function Layout({ children }) {
             <span className="font-bold text-lg hidden sm:inline">Interview Prep</span>
           </Link>
 
+          <nav className="nav-pills">
+            {LINKS.map((l) => (
+              <NavLink key={l.to} to={l.to} end={l.end} className="nav-link">
+                <span>{l.icon}</span>
+                {l.label}
+              </NavLink>
+            ))}
+          </nav>
+
           <div className="flex items-center gap-2">
             <button
               className="btn btn-ghost btn-sm"
@@ -70,25 +88,32 @@ function Layout({ children }) {
             >
               {theme === "dark" ? "☀️" : "🌙"}
             </button>
-            <span className="avatar">{initial}</span>
-            <span className="font-semibold hidden sm:inline">{user?.name}</span>
-            <button className="btn btn-ghost btn-sm" onClick={handleLogout}>
-              Log out
-            </button>
+
+            <div className="menu-wrap" ref={menuRef}>
+              <button
+                className="avatar"
+                style={{ border: "none", cursor: "pointer", font: "inherit" }}
+                onClick={() => setMenuOpen(!menuOpen)}
+                title="Account"
+              >
+                {initial}
+              </button>
+              {menuOpen && (
+                <div className="menu">
+                  <p className="muted text-sm" style={{ margin: "6px 12px 8px" }}>
+                    Signed in as <b>{user?.name}</b>
+                  </p>
+                  <Link to="/add-question" className="menu-item">
+                    ➕ Add a question
+                  </Link>
+                  <button className="menu-item" onClick={handleLogout}>
+                    🚪 Log out
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
-
-        <nav
-          className="mx-auto px-4 pb-2 flex gap-1 overflow-x-auto"
-          style={{ maxWidth: 1080 }}
-        >
-          {LINKS.map((l) => (
-            <NavLink key={l.to} to={l.to} end={l.end} className="nav-link">
-              <span>{l.icon}</span>
-              {l.label}
-            </NavLink>
-          ))}
-        </nav>
       </header>
 
       <main key={location.pathname} className="page fade-in">

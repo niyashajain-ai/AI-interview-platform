@@ -14,7 +14,7 @@ function AddQuestion() {
   const [message, setMessage] = useState("");
 
   useEffect(() => {
-    fetch("http://localhost:5000/api/questions", {
+    fetch("/api/questions", {
       headers: { Authorization: `Bearer ${getToken()}` },
     })
       .then((res) => (res.ok ? res.json() : []))
@@ -30,7 +30,7 @@ function AddQuestion() {
     setMessage("");
     setSaving(true);
     try {
-      const res = await fetch("http://localhost:5000/api/questions", {
+      const res = await fetch("/api/questions", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
